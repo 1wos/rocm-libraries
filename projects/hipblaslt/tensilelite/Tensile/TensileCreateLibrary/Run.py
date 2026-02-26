@@ -390,7 +390,11 @@ def writeSolutionsAndKernels(
 
     def assemble(ret):
         p, isa, wavefrontsize, _ = ret
-        asmToolchain.assembler(isaToGfx(isa), wavefrontsize, str(p), str(p.with_suffix(".o")))
+        try:
+            asmToolchain.assembler(isaToGfx(isa), wavefrontsize, str(p), str(p.with_suffix(".o")))
+        except RuntimeError as e:
+            printWarning(f"Failed to assemble {p}: {e}")
+            return
 
     unaryWriteAssembly = functools.partial(writeAssembly, assemblyTmpPath)
     compose = lambda *F: functools.reduce(lambda f, g: lambda x: f(g(x)), F)
@@ -402,6 +406,14 @@ def writeSolutionsAndKernels(
             return_as="list",
             multiArg=False,
         )
+
+    # Remove solutions whose kernels failed to assemble (no .o file produced)
+    failedBases = {k["BaseName"] for k in asmKernels
+                   if not k.duplicate and not (assemblyTmpPath / (k["BaseName"] + ".o")).exists()}
+    if failedBases:
+        solutions[:] = [s for s in solutions
+                        if getKernelFileBase(splitGSU, s.getKernels()[0]) not in failedBases]
+        asmKernels[:] = [k for k in asmKernels if k.get("BaseName", None) not in failedBases]
 
     with timing_context("python_kernel_write_helpers"):
         writeHelpers(outputPath, kernelHelperObjs, KERNEL_HELPER_FILENAME_CPP, KERNEL_HELPER_FILENAME_H)
@@ -421,7 +433,7 @@ def writeSolutionsAndKernels(
             codeObjectFiles += buildAssemblyCodeObjectFiles(
                 asmToolchain.linker,
                 asmToolchain.bundler,
-                asmKernels,
+                [k for k in asmKernels if not k.duplicate],
                 destLibPath,
                 assemblyTmpPath,
                 compress,
