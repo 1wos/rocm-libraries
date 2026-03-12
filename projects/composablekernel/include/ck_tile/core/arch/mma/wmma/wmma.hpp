@@ -17,11 +17,6 @@ enum struct WmmaCtrlFlags : bool
     // High = bits[31:16]
     LOW  = false,
     HIGH = true,
-
-    // Only has an effect on gfx11 / 12 when the input is 8-bit int
-    // Signage indicator of inputs / accum
-    UNSIGNED = false,
-    SIGNED   = true
 };
 
 } // namespace ck_tile::core::arch::mma
