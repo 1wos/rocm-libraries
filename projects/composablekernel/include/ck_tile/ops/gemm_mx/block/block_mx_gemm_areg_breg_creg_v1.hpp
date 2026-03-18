@@ -14,7 +14,7 @@ namespace ck_tile {
 template <typename Problem_,
           typename Policy_ = BlockGemmARegBRegCRegV1DefaultPolicy,
           bool TransposeC_ = false>
-struct BlockGemmARegBRegCRegV1
+struct BlockMXGemmARegBRegCRegV1
 {
     private:
     template <typename PipelineProblem_, typename GemmPolicy_>
@@ -67,6 +67,9 @@ struct BlockGemmARegBRegCRegV1
     static constexpr index_t NWarp            = Traits::NWarp;
     static constexpr bool UseDefaultScheduler = (Problem::NumWaveGroups != 1);
 
+    // Note: distribution encodings have MIterPerWarp and NIterPerWarp contiguous because of scale
+    // packing.
+
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
         if constexpr(UseDefaultScheduler)
@@ -88,11 +91,11 @@ struct BlockGemmARegBRegCRegV1
         {
             constexpr auto a_block_outer_dstr_encoding = tile_distribution_encoding<
                 sequence<NWarp>,
-                tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                tuple<sequence<MWarp, MIterPerWarp>, sequence<KIterPerWarp>>,
                 tuple<sequence<1, 0>>,
-                tuple<sequence<1, 0>>,
+                tuple<sequence<0, 0>>,
                 sequence<1, 2>,
-                sequence<0, 0>>{};
+                sequence<1, 0>>{};
             constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
                 a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
 
@@ -120,11 +123,11 @@ struct BlockGemmARegBRegCRegV1
         {
             constexpr auto b_block_outer_dstr_encoding = tile_distribution_encoding<
                 sequence<MWarp>,
-                tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
+                tuple<sequence<NWarp, NIterPerWarp>, sequence<KIterPerWarp>>,
                 tuple<sequence<0, 1>>,
-                tuple<sequence<0, 1>>,
+                tuple<sequence<0, 0>>,
                 sequence<1, 2>,
-                sequence<0, 0>>{};
+                sequence<1, 0>>{};
             constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
                 b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
 
@@ -137,13 +140,14 @@ struct BlockGemmARegBRegCRegV1
         using c_distr_ys_major = std::conditional_t<TransposeC, sequence<2, 1>, sequence<1, 2>>;
         if constexpr(UseDefaultScheduler)
         {
+            using c_distr_ys_minor = std::conditional_t<TransposeC, sequence<1, 0>, sequence<0, 1>>;
             constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
                 sequence<MWarp>,
-                tuple<sequence<MIterPerWarp>, sequence<NIterPerWarp, NWarp>>,
-                tuple<>,
-                tuple<>,
+                tuple<sequence<MIterPerWarp>, sequence<NWarp, NIterPerWarp>>,
+                tuple<sequence<1, 2>>,
+                tuple<sequence<0, 0>>,
                 c_distr_ys_major,
-                sequence<0, 0>>{};
+                c_distr_ys_minor>{};
             constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
                 c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
 
@@ -153,11 +157,11 @@ struct BlockGemmARegBRegCRegV1
         {
             constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
                 sequence<>,
-                tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
+                tuple<sequence<MWarp, MIterPerWarp>, sequence<NWarp, NIterPerWarp>>,
                 tuple<sequence<1, 2>>,
-                tuple<sequence<1, 1>>,
+                tuple<sequence<0, 0>>,
                 c_distr_ys_major,
-                sequence<0, 0>>{};
+                sequence<1, 1>>{};
             constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
                 c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
 
@@ -165,11 +169,24 @@ struct BlockGemmARegBRegCRegV1
         }
     }
 
-    // C += A * B
-    template <typename CBlockTensor, typename ABlockTensor, typename BBlockTensor>
+    // C += A * B with MX scaling and packed-in-two (XdlPack) optimization
+    // Scale tensors contain pre-packed int32_t: each int32_t holds MXdlPack * KXdlPack e8m0_t
+    // values (for A) or NXdlPack * KXdlPack (for B), packed on the host.
+    // Uses OpSel (0-3) to select which byte within the packed int32_t for each MFMA call.
+    // XdlPack template parameters default to 2; fall back to 1 when iteration count is too small.
+    template <typename CBlockTensor,
+              typename ABlockTensor,
+              typename BBlockTensor,
+              typename ScaleATensor,
+              typename ScaleBTensor,
+              index_t MXdlPack_ = 2,
+              index_t NXdlPack_ = 2,
+              index_t KXdlPack_ = 2>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
                                    const ABlockTensor& a_block_tensor,
-                                   const BBlockTensor& b_block_tensor) const
+                                   const BBlockTensor& b_block_tensor,
+                                   const ScaleATensor& scale_a_tensor,
+                                   const ScaleBTensor& scale_b_tensor) const
     {
         static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensor::DataType>> &&
                           std::is_same_v<BDataType, remove_cv_t<typename BBlockTensor::DataType>> &&
@@ -212,88 +229,93 @@ struct BlockGemmARegBRegCRegV1
         constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        // hot loop:
-        static_ford<sequence<KIterPerWarp, MIterPerWarp>>{}([&](auto km) {
-            constexpr auto kIter = number<km[number<0>{}]>{};
-            constexpr auto mIter = number<km[number<1>{}]>{};
-            // read A warp tensor from A Block window
-            AWarpTensor a_warp_tensor;
-            a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
-                merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+        // Effective XdlPack: fall back to 1 when iteration count is insufficient
+        constexpr index_t MXdlPack =
+            (MIterPerWarp >= MXdlPack_ && MIterPerWarp % MXdlPack_ == 0) ? MXdlPack_ : 1;
+        constexpr index_t NXdlPack =
+            (NIterPerWarp >= NXdlPack_ && NIterPerWarp % NXdlPack_ == 0) ? NXdlPack_ : 1;
+        constexpr index_t KXdlPack =
+            (KIterPerWarp >= KXdlPack_ && KIterPerWarp % KXdlPack_ == 0) ? KXdlPack_ : 1;
 
-            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                // read B warp tensor from B block tensor
-                BWarpTensor b_warp_tensor;
-                b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
-                    merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
-                    merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+        constexpr index_t MPackIterPerWarp = MIterPerWarp / MXdlPack;
+        constexpr index_t NPackIterPerWarp = NIterPerWarp / NXdlPack;
+        constexpr index_t KPackIterPerWarp = KIterPerWarp / KXdlPack;
 
-                // read C warp tensor from C block tensor
-                using c_iter_idx =
-                    std::conditional_t<TransposeC, sequence<nIter, mIter>, sequence<mIter, nIter>>;
-                CWarpTensor c_warp_tensor;
-                c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
-                    merge_sequences(c_iter_idx{}, c_warp_y_index_zeros),
-                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+        // hot loop with MX scaling and pre-packed int32_t scales:
+        // Outer loops iterate over pack groups (scale tile indices)
+        static_ford<sequence<KPackIterPerWarp, MPackIterPerWarp>>{}([&](auto ii) {
+            constexpr auto ikpack = number<ii[number<0>{}]>{};
+            constexpr auto impack = number<ii[number<1>{}]>{};
+            // Get pre-packed int32_t A scale (already contains MXdlPack*KXdlPack e8m0_t)
+            auto scale_a_slice = scale_a_tensor.get_y_sliced_thread_data(
+                sequence<ikpack, impack, 0>{}, sequence<1, 1, 1>{});
+            const int32_t a_scale_packed = bit_cast<int32_t>(scale_a_slice[number<0>{}]);
 
-                // warp GEMM
-                WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+            static_for<0, NPackIterPerWarp, 1>{}([&](auto inpack) {
+                // Get pre-packed int32_t B scale
+                auto scale_b_slice = scale_b_tensor.get_y_sliced_thread_data(
+                    sequence<ikpack, inpack, 0>{}, sequence<1, 1, 1>{});
+                const int32_t b_scale_packed = bit_cast<int32_t>(scale_b_slice[number<0>{}]);
 
-                // write C warp tensor into C block tensor
-                c_block_tensor.set_y_sliced_thread_data(
-                    merge_sequences(c_iter_idx{}, c_warp_y_index_zeros),
-                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                    c_warp_tensor.get_thread_buffer());
+                // Inner loops: issue MFMAs within the pack group using OpSel
+                static_ford<sequence<KXdlPack, MXdlPack>>{}([&](auto jj) {
+                    constexpr auto ikxdl = number<jj[number<0>{}]>{};
+                    constexpr auto imxdl = number<jj[number<1>{}]>{};
+                    constexpr auto kIter = ikpack * KXdlPack + ikxdl;
+                    constexpr auto mIter = impack * MXdlPack + imxdl;
+
+                    // read A warp tensor from A block tensor
+                    AWarpTensor a_warp_tensor;
+                    a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+
+                    // OpSel for A: selects byte within packed int32_t
+                    constexpr index_t kOpSelA = ikxdl * MXdlPack + imxdl;
+
+                    static_for<0, NXdlPack, 1>{}([&](auto inxdl) {
+                        constexpr auto nIter = inpack * NXdlPack + inxdl;
+
+                        // read B warp tensor from B block tensor
+                        BWarpTensor b_warp_tensor;
+                        b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
+                            merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+
+                        // OpSel for B: selects byte within packed int32_t
+                        constexpr index_t kOpSelB = ikxdl * NXdlPack + inxdl;
+
+                        // read C warp tensor from C block tensor
+                        using c_iter_idx = std::conditional_t<TransposeC,
+                                                              sequence<nIter, mIter>,
+                                                              sequence<mIter, nIter>>;
+                        CWarpTensor c_warp_tensor;
+                        c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                            merge_sequences(c_iter_idx{}, c_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                        // warp GEMM with MX scaling using pre-packed scale and OpSel
+                        WarpGemm{}.template operator()<kOpSelA, kOpSelB>(c_warp_tensor,
+                                                                         a_warp_tensor,
+                                                                         b_warp_tensor,
+                                                                         a_scale_packed,
+                                                                         b_scale_packed);
+
+                        // write C warp tensor into C block tensor
+                        c_block_tensor.set_y_sliced_thread_data(
+                            merge_sequences(c_iter_idx{}, c_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                            c_warp_tensor.get_thread_buffer());
+                    });
+                });
             });
         });
     }
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
-        using c_distr_ys_major = std::conditional_t<TransposeC, sequence<2, 1>, sequence<1, 2>>;
-        if constexpr(UseDefaultScheduler)
-        {
-            constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-                sequence<MWarp>,
-                tuple<sequence<MIterPerWarp>, sequence<NIterPerWarp, NWarp>>,
-                tuple<>,
-                tuple<>,
-                c_distr_ys_major,
-                sequence<0, 0>>{};
-
-            constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-                c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
-            constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-            auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
-            return c_block_tensor;
-        }
-        else
-        {
-            constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-                tuple<sequence<1, 2>>,
-                tuple<sequence<1, 1>>,
-                c_distr_ys_major,
-                sequence<0, 0>>{};
-
-            constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-                c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
-            constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-            auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
-            return c_block_tensor;
-        }
-    }
-
-    // C = A * B
-    template <typename ABlockTensor, typename BBlockTensor>
-    CK_TILE_DEVICE auto operator()(const ABlockTensor& a_block_tensor,
-                                   const BBlockTensor& b_block_tensor) const
-    {
-        auto c_block_tensor = MakeCBlockTile();
-        operator()(c_block_tensor, a_block_tensor, b_block_tensor);
-        return c_block_tensor;
+        return make_static_distributed_tensor<CDataType>(
+            make_static_tile_distribution(MakeCBlockDistributionEncode()));
     }
 };
 

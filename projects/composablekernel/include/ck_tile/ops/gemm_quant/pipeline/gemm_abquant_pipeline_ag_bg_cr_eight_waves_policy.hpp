@@ -83,6 +83,11 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetKStepAQ() { return KPerBlockAQ; }
     CK_TILE_HOST_DEVICE static constexpr auto GetKStepBQ() { return KPerBlockBQ; }
 
+    // TODO: generalize instruction count calculation
+    CK_TILE_HOST_DEVICE static constexpr auto GetInstCountAQ() { return MIterPerWarp; }
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetInstCountBQ() { return 1; }
+
     CK_TILE_HOST_DEVICE static constexpr auto MakeAQBlockDistribution()
     {
         return make_static_tile_distribution(
@@ -152,6 +157,8 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy : public GemmPipelineAgBgCrCompAsync
     FORWARD_METHOD_(GetBlockGemm);
     FORWARD_METHOD_(GetKStepAQ);
     FORWARD_METHOD_(GetKStepBQ);
+    FORWARD_METHOD_(GetInstCountAQ);
+    FORWARD_METHOD_(GetInstCountBQ);
 
 #undef FORWARD_METHOD_
 };

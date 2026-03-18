@@ -34,7 +34,8 @@ template <typename AsDataType_,
           bool FixedVectorSize_        = false,
           index_t VectorSizeC_         = 1,
           index_t BlockedXDLN_PerWarp_ = 1, // The number of continuous xdl_output per warp
-          bool DoubleSmemBuffer_       = false>
+          bool DoubleSmemBuffer_       = false,
+          bool TilesPacked_            = false>
 struct CShuffleEpilogueProblem
 {
     using AsDataType                             = remove_cvref_t<AsDataType_>;
@@ -60,7 +61,7 @@ struct CShuffleEpilogueProblem
     static constexpr bool DoubleSmemBuffer       = DoubleSmemBuffer_;
     static constexpr index_t kNumWaveGroups      = kNumWaveGroups_;
     static constexpr index_t NumDTensor          = DsDataType::size();
-
+    static constexpr bool TilesPacked            = TilesPacked_;
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
 };
@@ -134,15 +135,19 @@ struct CShuffleEpilogue
     static constexpr bool EightWave = false;
 #endif
 
+    // If the wave tiles computed by a single wave are packed
+    // This implies that in the block gemm MRepeat and NRepeat are contiguous
+    static constexpr bool TilesPacked = Problem::TilesPacked;
     static constexpr index_t BlockedXDLN_PerWarp =
-        EightWave ? kNPerBlock / NWave / NPerXdl : Problem::BlockedXDLN_PerWarp;
-    static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
-    static constexpr index_t VectorSizeC   = Problem::VectorSizeC;
-    static constexpr index_t MPerIteration = MPerXdl * MWave;
-    static constexpr index_t NPerIteration = NPerXdl * NWave;
-    static constexpr index_t NumDTensor    = Problem::NumDTensor;
-    static constexpr index_t MRepeat       = kMPerBlock / (MPerXdl * MWave);
-    static constexpr index_t NRepeat       = kNPerBlock / (NPerXdl * NWave);
+        (EightWave || TilesPacked) ? kNPerBlock / NWave / NPerXdl : Problem::BlockedXDLN_PerWarp;
+    static constexpr index_t BlockedXDLM_PerWarp = (TilesPacked) ? kMPerBlock / MWave / MPerXdl : 1;
+    static constexpr bool DoubleSmemBuffer       = Problem::DoubleSmemBuffer;
+    static constexpr index_t VectorSizeC         = Problem::VectorSizeC;
+    static constexpr index_t MPerIteration       = MPerXdl * MWave;
+    static constexpr index_t NPerIteration       = NPerXdl * NWave;
+    static constexpr index_t NumDTensor          = Problem::NumDTensor;
+    static constexpr index_t MRepeat             = kMPerBlock / (MPerXdl * MWave);
+    static constexpr index_t NRepeat             = kNPerBlock / (NPerXdl * NWave);
 
     CDElementwise elfunc_;
 
@@ -282,7 +287,8 @@ struct CShuffleEpilogue
             }
         }
     }();
-    static constexpr index_t NumMXdlPerWavePerShuffle = std::get<0>(shuffle_tile_tuple);
+    static constexpr index_t NumMXdlPerWavePerShuffle =
+        max(BlockedXDLM_PerWarp, std::get<0>(shuffle_tile_tuple));
     static constexpr index_t NumNXdlPerWavePerShuffle =
         max(BlockedXDLN_PerWarp, std::get<1>(shuffle_tile_tuple));
 
@@ -446,62 +452,94 @@ struct CShuffleEpilogue
     CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
     {
         constexpr auto block_outer_dstr_encoding = [] {
-            if constexpr(BlockedXDLN_PerWarp == 1)
+            if constexpr(TilesPacked)
             {
-                return tile_distribution_encoding<sequence<>,
-                                                  tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                                                        sequence<NumNXdlPerWavePerShuffle, NWave>>,
-                                                  tuple<sequence<1, 2>>,
-                                                  tuple<sequence<1, 1>>,
-                                                  sequence<1, 2>,
-                                                  sequence<0, 0>>{};
+                if constexpr(EightWave)
+                {
+                    constexpr int RakedXDLN_PerWarp =
+                        NumNXdlPerWavePerShuffle / BlockedXDLN_PerWarp;
+                    return tile_distribution_encoding<
+                        sequence<>,
+                        tuple<sequence<MWave, NumMXdlPerWavePerShuffle>,
+                              sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
+                        tuple<sequence<2, 1>>,
+                        tuple<sequence<1, 0>>,
+                        sequence<1, 2, 2>,
+                        sequence<1, 0, 2>>{};
+                }
+                else
+                {
+                    return tile_distribution_encoding<
+                        sequence<>,
+                        tuple<sequence<MWave, NumMXdlPerWavePerShuffle>,
+                              sequence<NWave, NumNXdlPerWavePerShuffle>>,
+                        tuple<sequence<1, 2>>,
+                        tuple<sequence<0, 0>>,
+                        sequence<1, 2>,
+                        sequence<1, 1>>{};
+                }
             }
             else
             {
-#if defined(__gfx950__)
-                constexpr auto is_950 = true;
-#else
-                constexpr auto is_950 = false;
-#endif
-                constexpr int RakedXDLN_PerWarp = NumNXdlPerWavePerShuffle / BlockedXDLN_PerWarp;
-                // BlockedLayout
-                // this branch is for original a16w4
-                if constexpr(is_950 || is_any_of<ADataTypeBuf, pk_int4_t, pk_fp4_t>::value ||
-                             is_any_of<BDataTypeBuf, pk_int4_t, pk_fp4_t>::value)
+                if constexpr(BlockedXDLN_PerWarp == 1)
                 {
-                    if constexpr(EightWave)
+                    return tile_distribution_encoding<
+                        sequence<>,
+                        tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+                              sequence<NumNXdlPerWavePerShuffle, NWave>>,
+                        tuple<sequence<1, 2>>,
+                        tuple<sequence<1, 1>>,
+                        sequence<1, 2>,
+                        sequence<0, 0>>{};
+                }
+                else
+                {
+#if defined(__gfx950__)
+                    constexpr auto is_950 = true;
+#else
+                    constexpr auto is_950 = false;
+#endif
+                    constexpr int RakedXDLN_PerWarp =
+                        NumNXdlPerWavePerShuffle / BlockedXDLN_PerWarp;
+                    // BlockedLayout
+                    // this branch is for original a16w4
+                    if constexpr(is_950 || is_any_of<ADataTypeBuf, pk_int4_t, pk_fp4_t>::value ||
+                                 is_any_of<BDataTypeBuf, pk_int4_t, pk_fp4_t>::value)
                     {
-                        return tile_distribution_encoding<
-                            sequence<>,
-                            tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                                  sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
-                            tuple<sequence<2, 1>>,
-                            tuple<sequence<1, 1>>,
-                            sequence<1, 2, 2>,
-                            sequence<0, 0, 2>>{};
+                        if constexpr(EightWave)
+                        {
+                            return tile_distribution_encoding<
+                                sequence<>,
+                                tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+                                      sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
+                                tuple<sequence<2, 1>>,
+                                tuple<sequence<1, 1>>,
+                                sequence<1, 2, 2>,
+                                sequence<0, 0, 2>>{};
+                        }
+                        else
+                        {
+                            return tile_distribution_encoding<
+                                sequence<>,
+                                tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+                                      sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
+                                tuple<sequence<1, 2>>,
+                                tuple<sequence<1, 1>>,
+                                sequence<1, 2, 2>,
+                                sequence<0, 0, 2>>{};
+                        }
                     }
                     else
                     {
                         return tile_distribution_encoding<
                             sequence<>,
                             tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                                  sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
+                                  sequence<RakedXDLN_PerWarp, BlockedXDLN_PerWarp, NWave>>,
                             tuple<sequence<1, 2>>,
-                            tuple<sequence<1, 1>>,
+                            tuple<sequence<1, 2>>,
                             sequence<1, 2, 2>,
-                            sequence<0, 0, 2>>{};
+                            sequence<0, 0, 1>>{};
                     }
-                }
-                else
-                {
-                    return tile_distribution_encoding<
-                        sequence<>,
-                        tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                              sequence<RakedXDLN_PerWarp, BlockedXDLN_PerWarp, NWave>>,
-                        tuple<sequence<1, 2>>,
-                        tuple<sequence<1, 2>>,
-                        sequence<1, 2, 2>,
-                        sequence<0, 0, 1>>{};
                 }
             }
         }();
