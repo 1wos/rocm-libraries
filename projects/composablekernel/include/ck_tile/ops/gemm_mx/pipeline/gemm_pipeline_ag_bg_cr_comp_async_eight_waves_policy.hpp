@@ -74,7 +74,7 @@ struct MXGemmPipelineAgBgCrCompAsyncEightWavesPolicy
 
     static constexpr index_t KPerWarp = KPerBlock / KWarps;
     static constexpr index_t NPerWarp = NPerBlock / NWarps;
-    static_assert(NWarps == 2, "KWarps == 2 for ping-pong!");
+    static_assert(NWarps == 2, "NWarps == 2 for ping-pong!");
     static_assert(KWarpTiles == KWarps, "Wrong!");
 
     static constexpr index_t warp_size = get_warp_size();

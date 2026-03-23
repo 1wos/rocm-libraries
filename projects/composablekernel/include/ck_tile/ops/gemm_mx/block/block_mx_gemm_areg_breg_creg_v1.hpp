@@ -191,7 +191,7 @@ struct BlockMXGemmARegBRegCRegV1
         static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensor::DataType>> &&
                           std::is_same_v<BDataType, remove_cv_t<typename BBlockTensor::DataType>> &&
                           std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
-                      "wrong!");
+                      "Datatypes do not match BlockTensor datatypes!");
 
         // check ABC-block-distribution
         static_assert(

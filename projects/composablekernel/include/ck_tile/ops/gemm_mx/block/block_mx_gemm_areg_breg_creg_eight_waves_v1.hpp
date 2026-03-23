@@ -222,7 +222,7 @@ struct BlockMXGemmARegBRegCRegEightWavesV1
     {
         // checks
         static_assert(std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
-                      "wrong!");
+                      "CDataType must be same as CBlockTensor::DataType!");
         static_assert(
             std::is_same_v<remove_cvref_t<decltype(MakeCBlockDistributionEncode())>,
                            remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()

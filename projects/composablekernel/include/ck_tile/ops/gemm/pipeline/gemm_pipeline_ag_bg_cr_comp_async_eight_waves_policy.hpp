@@ -27,8 +27,10 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     using BDataType       = remove_cvref_t<typename Problem::BDataType>;
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-    static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>, "Wrong!");
-    static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>, "Wrong!");
+    static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>,
+                  "ALayout must be RowMajor!");
+    static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>,
+                  "BLayout must be ColumnMajor!");
     static_assert(is_any_of<ComputeDataType, fp8_t, bf8_t, pk_fp4_t>::value);
     static_assert(std::is_same_v<CDataType, float>);
 
@@ -88,7 +90,7 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     static constexpr index_t NIterPerWarp = NWarpTiles / NWarps;
     static constexpr index_t KPerWarp     = KPerBlock / KWarps;
     static constexpr index_t NPerWarp     = NPerBlock / NWarps;
-    static_assert(NWarps == 2, "KWarps == 2 for ping-pong!");
+    static_assert(NWarps == 2, "NWarps == 2 for ping-pong!");
     static_assert(KWarpTiles == KWarps, "Wrong!");
 
     static constexpr index_t warp_size = get_warp_size();
