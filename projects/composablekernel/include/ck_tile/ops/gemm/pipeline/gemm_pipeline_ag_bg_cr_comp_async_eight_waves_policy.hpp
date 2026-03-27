@@ -31,7 +31,7 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
                   "ALayout must be RowMajor!");
     static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>,
                   "BLayout must be ColumnMajor!");
-    static_assert(is_any_of<ComputeDataType, fp8_t, bf8_t, pk_fp4_t>::value);
+    static_assert(is_any_of<ComputeDataType, fp8_t, bf8_t, pk_fp4_t, pk_fp6x16_t>::value);
     static_assert(std::is_same_v<CDataType, float>);
 
     static constexpr auto WGAccess   = std::is_same_v<ComputeDataType, fp8_t>
@@ -339,14 +339,14 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     CK_TILE_DEVICE static constexpr index_t GetSmemSizeA()
     {
         constexpr index_t desc_size = MakeALdsBlockDescriptor().get_element_space_size();
-        return integer_least_multiple(sizeof(typename Problem::ADataType) * desc_size / PackedSize,
-                                      16);
+        return integer_least_multiple(
+            lds_padded_sizeof<typename Problem::ADataType>() * desc_size / PackedSize, 16);
     }
     CK_TILE_DEVICE static constexpr index_t GetSmemSizeB()
     {
         constexpr index_t desc_size = MakeBLdsBlockDescriptor().get_element_space_size();
-        return integer_least_multiple(sizeof(typename Problem::BDataType) * desc_size / PackedSize,
-                                      16);
+        return integer_least_multiple(
+            lds_padded_sizeof<typename Problem::BDataType>() * desc_size / PackedSize, 16);
     }
 
     CK_TILE_DEVICE static constexpr index_t GetSmemSize()

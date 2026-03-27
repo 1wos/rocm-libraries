@@ -27,7 +27,7 @@ struct MXGemmPipelineAgBgCrCompAsyncEightWavesPolicy
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>, "Wrong!");
     static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>, "Wrong!");
-    static_assert(is_any_of<ComputeDataType, fp8_t, bf8_t, pk_fp4_t>::value);
+    static_assert(is_any_of<ComputeDataType, fp8_t, bf8_t, pk_fp4_t, pk_fp6x16_t>::value);
     static_assert(std::is_same_v<CDataType, float>);
 
     using BlockGemmShape = typename Problem::BlockGemmShape;
