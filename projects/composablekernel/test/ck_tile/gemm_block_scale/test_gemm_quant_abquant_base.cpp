@@ -14,6 +14,7 @@ using RowMajor    = ck_tile::tensor_layout::gemm::RowMajor;
 using ColumnMajor = ck_tile::tensor_layout::gemm::ColumnMajor;
 using FP8         = ck_tile::fp8_t;
 using BF8         = ck_tile::bf8_t;
+using BF16        = ck_tile::bf16_t;
 using Half        = ck_tile::half_t;
 using PkInt4      = ck_tile::pk_int4_t;
 using ABQuantGrouped =
@@ -35,6 +36,9 @@ using ABQuantTypes = ::testing::Types<
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigBase, GroupSize, GroupSize, ColumnMajor>,
     std::tuple<ColumnMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigBase, GroupSize, GroupSize, ColumnMajor>,
     std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigBase, GroupSize, GroupSize, ColumnMajor>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF16, BF8, float, Half, ABQuantGrouped, GemmConfigBase, GroupSize, GroupSize, ColumnMajor>,
+    std::tuple<ColumnMajor, RowMajor, RowMajor, RowMajor, BF16, BF8, float, Half, ABQuantGrouped, GemmConfigBase, GroupSize, GroupSize, ColumnMajor>,
+    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, BF16, BF8, float, Half, ABQuantGrouped, GemmConfigBase, GroupSize, GroupSize, ColumnMajor>,
 	
     // 2D B-scales; PreshuffleQuant = false && TransposeC = true (RCR layout with RowMajor AQ)
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigTransposeC, GroupSize, GroupSize2D128N, ColumnMajor>,
@@ -42,7 +46,10 @@ using ABQuantTypes = ::testing::Types<
     std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigTransposeC, GroupSize, GroupSize2D128N, ColumnMajor>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigTransposeC, GroupSize, GroupSize2D128N, ColumnMajor>,
     std::tuple<ColumnMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigTransposeC, GroupSize, GroupSize2D128N, ColumnMajor>,
-    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigTransposeC, GroupSize, GroupSize2D128N, ColumnMajor>
+    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigTransposeC, GroupSize, GroupSize2D128N, ColumnMajor>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF16, BF8, float, Half, ABQuantGrouped, GemmConfigTransposeC, GroupSize, GroupSize2D128N, ColumnMajor>,
+    std::tuple<ColumnMajor, RowMajor, RowMajor, RowMajor, BF16, BF8, float, Half, ABQuantGrouped, GemmConfigTransposeC, GroupSize, GroupSize2D128N, ColumnMajor>,
+    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, BF16, BF8, float, Half, ABQuantGrouped, GemmConfigTransposeC, GroupSize, GroupSize2D128N, ColumnMajor>
 >;
 // clang-format on
 
