@@ -246,21 +246,38 @@ using CompAsyncConfig16x16x128 = std::tuple<ALayout,
                                             CompAsync>;
 
 template <typename ALayout, typename BLayout, typename CLayout, typename InputType>
-using CompAsyncEightWavesConfig = std::tuple<ALayout,
-                                             BLayout,
-                                             CLayout,
-                                             InputType, // AType
-                                             InputType, // BType
-                                             F32,       // AccType
-                                             F16,       // OutputType
-                                             I192,      // MBlockTileSize
-                                             I256,      // NBlockTileSize
-                                             I128,      // KBlockTileSize
-                                             I16,       // MWarpTileSize
-                                             I16,       // NWarpTileSize
-                                             I128,      // KWarpTileSize
-                                             Intrawave,
-                                             CompAsyncEightWaves>;
+using CompAsyncEightWavesConfig8_4Bit = std::tuple<ALayout,
+                                                   BLayout,
+                                                   CLayout,
+                                                   InputType, // AType
+                                                   InputType, // BType
+                                                   F32,       // AccType
+                                                   F16,       // OutputType
+                                                   I128,      // MBlockTileSize
+                                                   I256,      // NBlockTileSize
+                                                   I128,      // KBlockTileSize
+                                                   I16,       // MWarpTileSize
+                                                   I16,       // NWarpTileSize
+                                                   I128,      // KWarpTileSize
+                                                   Intrawave,
+                                                   CompAsyncEightWaves>;
+
+template <typename ALayout, typename BLayout, typename CLayout, typename InputType>
+using CompAsyncEightWavesConfig16Bit = std::tuple<ALayout,
+                                                  BLayout,
+                                                  CLayout,
+                                                  InputType, // AType
+                                                  InputType, // BType
+                                                  F32,       // AccType
+                                                  F16,       // OutputType
+                                                  I192,      // MBlockTileSize
+                                                  I256,      // NBlockTileSize
+                                                  I64,       // KBlockTileSize
+                                                  I16,       // MWarpTileSize
+                                                  I16,       // NWarpTileSize
+                                                  I32,       // KWarpTileSize
+                                                  Intrawave,
+                                                  CompAsyncEightWaves>;
 
 using KernelTypesCompAsync = ::testing::Types<CompAsyncConfig<Row, Row, Row, F16>,
                                               CompAsyncConfig<Row, Col, Row, F16>,
@@ -275,7 +292,11 @@ using KernelTypesCompAsync16x16x128 = ::testing::Types<CompAsyncConfig16x16x128<
                                                        CompAsyncConfig16x16x128<Row, Col, Row, F8>>;
 
 using KernelTypesCompAsyncEightWaves =
-    ::testing::Types<CompAsyncEightWavesConfig<Row, Col, Row, F8>>;
+    ::testing::Types<CompAsyncEightWavesConfig8_4Bit<Row, Col, Row, F8>,
+                     CompAsyncEightWavesConfig8_4Bit<Row, Col, Row, BF8>,
+                     CompAsyncEightWavesConfig8_4Bit<Row, Col, Row, F4>,
+                     CompAsyncEightWavesConfig16Bit<Row, Col, Row, F16>,
+                     CompAsyncEightWavesConfig16Bit<Row, Col, Row, BF16>>;
 
 // clang-format off
 using KernelTypesCompV6 = ::testing::Types<
