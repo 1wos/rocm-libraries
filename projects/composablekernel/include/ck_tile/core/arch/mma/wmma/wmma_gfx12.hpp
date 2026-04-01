@@ -8,8 +8,8 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
-#include "ck_tile/core/arch/mma/mma_traits.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
 
 namespace ck_tile::core::arch::mma {
 
@@ -123,7 +123,7 @@ struct amdgcn_mma<bf16_t, bf16_t, bf16_t, 16u, 16u, 16u, CtrlFlags, CompilerTarg
 // TODO: c++20 requires
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
-//               | A B C DataTypes       | MNK + WaveSize    |AParams |BPar |CPar |
+//               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
 struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
 : amdgcn_mma_base<int8_t, int8_t, int32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
@@ -151,7 +151,7 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 16u, CtrlFlags, CompilerTar
 // TODO: c++20 requires
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
-//               | A B C DataTypes    | MNK + WaveSize    |AParams |BPar |CPar |
+//               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
 struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
 : amdgcn_mma_base<fp8_t, fp8_t, fp32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
@@ -175,7 +175,7 @@ struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget
 // TODO: c++20 requires
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
-//               | A B C DataTypes    | MNK + WaveSize    |AParams |BPar |CPar |
+//               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
 struct amdgcn_mma<fp8_t, bf8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
 : amdgcn_mma_base<fp8_t, bf8_t, fp32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
@@ -199,7 +199,7 @@ struct amdgcn_mma<fp8_t, bf8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget
 // TODO: c++20 requires
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
-//               | A B C DataTypes    | MNK + WaveSize    |AParams |BPar |CPar |
+//               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
 struct amdgcn_mma<bf8_t, fp8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
 : amdgcn_mma_base<bf8_t, fp8_t, fp32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
@@ -223,7 +223,7 @@ struct amdgcn_mma<bf8_t, fp8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget
 // TODO: c++20 requires
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
-//               | A B C DataTypes    | MNK + WaveSize    |AParams |BPar |CPar |
+//               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
 struct amdgcn_mma<bf8_t, bf8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
 : amdgcn_mma_base<bf8_t, bf8_t, fp32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on

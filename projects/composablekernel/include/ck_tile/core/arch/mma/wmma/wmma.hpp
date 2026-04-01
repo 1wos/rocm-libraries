@@ -19,6 +19,23 @@ enum struct WmmaCtrlFlags : bool
     HIGH = true,
 };
 
+/**
+ * @class DefaultWmmaFlags
+ * @brief Generates default WMMA control flags based on data types.
+ * @tparam ADataType Data type of matrix A
+ * @tparam BDataType Data type of matrix B
+ * @tparam CDataType Data type of the accumulator
+ */
+template <typename ADataType, typename BDataType, typename CDataType>
+struct DefaultWmmaCtrlFlags
+{
+    constexpr static bool Clamp = false;
+
+    // Generate default flags for accumulator destination bits.
+    // Only used if accumulation size is 16-bit in gfx11
+    constexpr static WmmaCtrlFlags AccumBits = WmmaCtrlFlags::LOW;
+};
+
 } // namespace ck_tile::core::arch::mma
 
 // Include the architecture-specific WMMA implementations and traits

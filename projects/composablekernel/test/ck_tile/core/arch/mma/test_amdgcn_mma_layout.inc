@@ -6,14 +6,22 @@
 #include <hip/hip_runtime.h>
 #include <gtest/gtest.h>
 
-#include "ck_tile/host/hip_check_error.hpp"
-#include "ck_tile/host/stream_config.hpp"
-#include "ck_tile/host/device_memory.hpp"
-#include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/arch/mma/mfma/mfma.hpp"
+#include "ck_tile/core/arch/mma/mma_traits.hpp"
+#include "ck_tile/core/arch/mma/sparse/sparse.hpp"
+#include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_calculator.hpp"
+#include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_register_mapper.hpp"
+#include "ck_tile/core/arch/mma/wmma/wmma.hpp"
 #include "ck_tile/core/numeric/type_convert.hpp"
+#include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/host/device_memory.hpp"
+#include "ck_tile/host/hip_check_error.hpp"
+#include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/host/stream_config.hpp"
 
-#include <cstdio>
+#include <cstdint>
+#include <utility>
 #include <vector>
 #include <cmath>
 
@@ -26,7 +34,6 @@ using namespace mma;
 using F16       = fp16_t;
 using BF16      = bf16_t;
 using F32       = fp32_t;
-using U8        = uint8_t;
 using I8        = int8_t;
 using FP8       = fp8_t;
 using BF8       = bf8_t;
