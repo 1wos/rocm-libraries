@@ -33,7 +33,9 @@ struct GemmQuantPipelineProblemBase
           CDataType_,
           BlockGemmShape_,
           Traits_,
-          mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>
+          std::conditional_t<Traits_::FuseAQuant,
+                             mixed_prec_compute_type_t<ComputeDataType_, fp8_t, BDataType_>,
+                             mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>>
 {
 
     using Base = GemmPipelineProblemBase<
@@ -42,7 +44,9 @@ struct GemmQuantPipelineProblemBase
         CDataType_,
         BlockGemmShape_,
         Traits_,
-        mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>;
+        std::conditional_t<Traits_::FuseAQuant,
+                           mixed_prec_compute_type_t<ComputeDataType_, fp8_t, BDataType_>,
+                           mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>>;
 
     using Traits = typename Base::Traits;
 
