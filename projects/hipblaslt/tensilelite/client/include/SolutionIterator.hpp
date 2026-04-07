@@ -30,10 +30,13 @@
 
 #include "ProgramOptions.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <functional>
-#include <vector>
 #include <map>
 #include <queue>
+#include <unordered_map>
+#include <vector>
 
 #include "RunListener.hpp"
 
@@ -141,6 +144,26 @@ namespace TensileLite
         public:
             using RunCriteria = std::vector<std::function<bool(
                 ContractionProblemGemm const&, Hardware const&, ContractionSolution const&)>>;
+
+            // For 0 <= threshold <= 1, keep a strict top-K slice by count rather than
+            // admitting every solution tied at the cutoff value.
+            static size_t predictionThresholdKeepCount(size_t totalSolutions,
+                                                       double predictionThreshold)
+            {
+                if(totalSolutions == 0)
+                    return 0;
+                if(predictionThreshold == 0.0)
+                    return 1;
+                if(!std::isfinite(predictionThreshold))
+                    return totalSolutions;
+                if(predictionThreshold < 0.0 || predictionThreshold >= 1.0)
+                    return totalSolutions;
+
+                return std::max<size_t>(
+                    1,
+                    std::min(totalSolutions,
+                             static_cast<size_t>(std::ceil(totalSolutions * predictionThreshold))));
+            }
 
             static RunCriteria CreateCriteria(
                 std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,

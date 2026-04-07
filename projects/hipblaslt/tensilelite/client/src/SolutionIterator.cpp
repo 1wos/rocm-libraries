@@ -332,34 +332,27 @@ namespace TensileLite
 
                 auto comp = [](const std::pair<int, double>& e1, const std::pair<int, double>& e2) { return e1.second < e2.second; };
                 std::stable_sort(performance.begin(),performance.end(),comp);
-                // TODO: This is the simple threshold method.
-                // May use the best perf * 1.x as threshold in the future.
-                size_t index    = std::min(performance.size() - 1, size_t(performance.size() * m_predictionThreshold));
-                auto threshhold = performance[index].second;
+                if(performance.empty())
+                {
+                    throw std::runtime_error(
+                        "[AllSolutionsIterator::preProblem] No valid solutions after prediction filtering");
+                }
 
-                // push content
+                const size_t totalSolutions = performance.size();
+                const size_t keepCount
+                    = AllSolutionsIterator::predictionThresholdKeepCount(totalSolutions,
+                                                                         m_predictionThreshold);
+
+                // Keep a strict top-K slice by count for 0 <= predictionThreshold <= 1.
                 if(!m_qSolutionIdx.empty())
                 {
                     throw std::runtime_error(
                         "[AllSolutionsIterator::preProblem] Solution queue is not empty");
                 }
 
-                for (int i=0; i<performance.size(); i++)
+                for(size_t i = 0; i < keepCount; i++)
                 {
-                    if(m_predictionThreshold == 0.0)
-                    {   
-                        auto bestIdx = 0;
-                        m_qSolutionIdx.push(performance[bestIdx]);
-                        break;
-                    }
-                    else if(performance[i].second <= threshhold)
-                    {
-                        m_qSolutionIdx.push(performance[i]);
-                    }
-                    else
-                    {
-                        break;
-                    }
+                    m_qSolutionIdx.push(performance[i]);
                 }
                 m_currentSolutionIdx = m_qSolutionIdx.front().first;
                 m_currentPrediction  = m_qSolutionIdx.front().second;

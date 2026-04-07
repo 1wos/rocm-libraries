@@ -351,7 +351,7 @@ namespace TensileLite
                 ("selection-only",           po::value<bool>()->default_value(false), "Don't run any solutions, only print kernel selections.")
                 ("max-workspace-size",       po::value<size_t>()->default_value(32*1024*1024), "Max workspace for training")
                 ("granularity-threshold",    po::value<double>()->default_value(0.0), "Don't run a solution if total granularity is below")
-                ("prediction-threshold",     po::value<double>()->default_value(2.0), "Don't run a solution if predicted performance is low")
+                ("prediction-threshold",     po::value<double>()->default_value(2.0), "Prediction gating: >1 disables prediction sorting, 1 runs all sorted, 0<x<1 keeps top ceil(N*x), 0 keeps best only")
 
                 ("activation-type",           po::value<ActivationType>()->default_value(ActivationType::None), "An activation type")
                 ("activation-hpa",            po::value<bool>()->default_value(false), "Use the same data type as high precision accumulate.")
@@ -955,6 +955,14 @@ int main(int argc, const char* argv[])
         exit(1);
     }
 
+    int numBenchmarks = args["num-benchmarks"].as<int>();
+    if(numBenchmarks <= 0)
+    {
+        std::cout << "Invalid num-benchmarks: " << numBenchmarks << std::endl;
+        std::cout << "Please set num-benchmarks > 0." << std::endl;
+        exit(1);
+    }
+
     if(firstSolutionIdx < 0)
         firstSolutionIdx = library->solutions.begin()->first;
 
@@ -1026,9 +1034,6 @@ int main(int argc, const char* argv[])
         listeners.setReporter(reporters);
     }
 
-    // ReferenceValidator validator(args, dataInit);
-    // BenchmarkTimer timer(args);
-
     reporters->report(ResultKey::ProblemCount, problemFactory.problems().size());
 
     bool  useUserArgs = args["use-user-args"].as<bool>();
@@ -1080,6 +1085,8 @@ int main(int argc, const char* argv[])
                         maxRotatingBufferNum, problem, inputs, stream);
                     static_cast<void>(hipDeviceSynchronize());
                 }
+                std::shared_ptr<ProblemInputs> benchmarkInputs
+                    = inputArr.empty() ? inputs : inputArr[0];
                 bool resetInput = false;
                 while(solutionIterator->moreSolutionsInProblem())
                 {
@@ -1105,7 +1112,10 @@ int main(int argc, const char* argv[])
                                 {
                                     ScopedTimer timer("gpu_input_reset");
                                     auto inputs = dataInit->prepareGPUInputs(problem);
-                                    inputArr[0] = inputs;
+                                    inputArr = dataInit->prepareRotatingGPUOutput(
+                                        maxRotatingBufferNum, problem, inputs, stream);
+                                    static_cast<void>(hipDeviceSynchronize());
+                                    benchmarkInputs = inputArr[0];
                                 }
                                 resetInput = true;
 
@@ -1147,16 +1157,6 @@ int main(int argc, const char* argv[])
                                                                             stream,
                                                                             warmupStartEvents[0],
                                                                             warmupStopEvents[0]));
-                                    }
-
-                                    {
-                                        ScopedTimer timer("validate_warmups");
-                                        listeners.validateWarmups(
-                                            inputs, warmupStartEvents, warmupStopEvents);
-                                    }
-
-                                    {
-                                        ScopedTimer timer("warmup_runs");
                                         for(int i = 1; i < warmupInvocations; i++)
                                         {
                                             size_t kIdx = i % kernels.size();
@@ -1165,6 +1165,16 @@ int main(int argc, const char* argv[])
                                                                                 warmupStartEvents[i],
                                                                                 warmupStopEvents[i]));
                                         }
+                                    }
+
+                                    {
+                                        ScopedTimer timer("validate_warmups");
+                                        listeners.validateWarmups(
+                                            benchmarkInputs, warmupStartEvents, warmupStopEvents);
+                                    }
+
+                                    {
+                                        ScopedTimer timer("post_warmups");
                                         listeners.postWarmup(
                                             warmupStartEvents, warmupStopEvents, stream);
                                     }
@@ -1183,7 +1193,7 @@ int main(int argc, const char* argv[])
 
                                 size_t syncs      = listeners.numSyncs();
                                 size_t enq        = listeners.numEnqueuesPerSync();
-                                size_t eventCount = gpuTimer ? kernels[0].size() : 0;
+                                size_t eventCount = gpuTimer ? 1 : 0;
 
                                 {
                                     ScopedTimer timer("benchmark_runs");
@@ -1191,26 +1201,44 @@ int main(int argc, const char* argv[])
                                     if(enq)
                                         for(int i = 0; i < syncs; i++)
                                         {
-                                            TimingEvents startEvents(enq, eventCount);
-                                            TimingEvents stopEvents(enq, eventCount);
+                                            // Bench-topology alignment: one hipEvent pair per sync
+                                            // wraps all `enq` kernels, so event overhead 2X is
+                                            // amortized across every kernel, matching hipblaslt-bench's
+                                            // single-event-pair-around-hot_iters timing window.
+                                            TimingEvents startEvents(1, eventCount);
+                                            TimingEvents stopEvents(1, eventCount);
 
                                             listeners.preEnqueues(stream);
 
                                             for(int j = 0; j < enq; j++)
                                             {
-                                                size_t kIdx = ((i * enq) + j) % kernels.size();
+                                                size_t kIdx
+                                                    = (static_cast<size_t>(i) * enq + j) % kernels.size();
+                                                bool isLastEnqueue = (j + 1 == enq);
+                                                hipEvent_t startEvent
+                                                    = (eventCount && j == 0)
+                                                          ? startEvents[0].front()
+                                                          : nullptr;
+                                                hipEvent_t stopEvent
+                                                    = (eventCount && isLastEnqueue && !icacheFlush)
+                                                          ? stopEvents[0].front()
+                                                          : nullptr;
                                                 HIP_CHECK_EXC(adapter.launchKernels(
-                                                    kernels[kIdx], stream, nullptr, nullptr));
+                                                    kernels[kIdx], stream, startEvent, stopEvent));
 
                                                 if(icacheFlush)
                                                 {
                                                     hipLaunchKernelGGL(
                                                         flush_icache, flushGridSize, 64, 0, stream);
+                                                    if(eventCount && isLastEnqueue)
+                                                        HIP_CHECK_EXC(
+                                                            hipEventRecord(stopEvents[0].front(), stream));
                                                 }
                                             }
 
                                             listeners.postEnqueues(startEvents, stopEvents, stream);
-                                            listeners.validateEnqueues(inputs, startEvents, stopEvents);
+                                            listeners.validateEnqueues(
+                                                benchmarkInputs, startEvents, stopEvents);
                                         }
 
                                     listeners.postSyncs();

@@ -374,15 +374,25 @@ namespace TensileLite
             {
                 std::unordered_map<std::string, std::string> curRow;
                 m_csvOutput.readCurrentRow(curRow);
-                bool  validation    = !(curRow[ResultKey::Validation] == "FAILED"
+                bool validation = !(curRow[ResultKey::Validation] == "FAILED"
                                     || curRow[ResultKey::Validation] == "INVALID");
-                float currentTimeUS = std::stof(curRow[ResultKey::TimeUS]);
+
+                auto timeIt      = curRow.find(ResultKey::TimeUS);
+                bool hasTimeUS   = timeIt != curRow.end() && !timeIt->second.empty();
+                float currentTimeUS = std::numeric_limits<float>::quiet_NaN();
+                if(hasTimeUS)
+                    currentTimeUS = std::stof(timeIt->second);
+
+                auto gflopsIt        = curRow.find(ResultKey::SpeedGFlops);
+                bool hasSpeedGFlops  = gflopsIt != curRow.end() && !gflopsIt->second.empty();
+                float currentGFlops  = hasSpeedGFlops ? std::stof(gflopsIt->second) : 0.0f;
+                bool skippedSolution = validation && !hasTimeUS;
+
                 if(m_rowLevel <= m_level
-                   && (!m_PrintWinnersOnly || currentTimeUS < m_winner || !validation
-                       || m_firstRun))
+                   && (!m_PrintWinnersOnly || skippedSolution || !hasTimeUS
+                       || currentTimeUS < m_winner || !validation || m_firstRun))
                 {
-                    if(std::isnan(currentTimeUS) && !std::stof(curRow[ResultKey::SpeedGFlops])
-                       && validation)
+                    if(skippedSolution || (std::isnan(currentTimeUS) && !currentGFlops && validation))
                         std::cout << curRow[ResultKey::BenchmarkRunNumber] << ","
                                   << curRow[ResultKey::ProblemProgress] << ","
                                   << curRow[ResultKey::SolutionProgress]
@@ -390,7 +400,7 @@ namespace TensileLite
                                   << curRow[ResultKey::SolutionName] << std::endl;
                     else
                         m_csvOutput.writeCurrentRow();
-                    if(validation && !std::isnan(currentTimeUS))
+                    if(validation && hasTimeUS && !std::isnan(currentTimeUS))
                     {
                         m_winner = currentTimeUS;
                     }

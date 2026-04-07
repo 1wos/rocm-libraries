@@ -122,6 +122,7 @@ globalParameters["CpuThreads"] = (
     -1
 )  # How many CPU threads to use for kernel generation.  0=no threading, -1 == nproc, N=min(nproc,N).  TODO - 0 sometimes fails with a kernel name error?  0 does not check error codes correctly
 globalParameters["NumWarmups"] = 0
+globalParameters["SyncAfterWarmups"] = True
 globalParameters["TimingInstrumentation"] = False  # Enable detailed timing instrumentation output
 globalParameters["ParallelGpuExecution"] = 1  # Number of GPUs for parallel client execution (0=auto-detect, 1=serial, N=use N GPUs)
 
@@ -264,13 +265,13 @@ globalParameters["MaxWorkspaceSize"] = 128 * 1024 * 1024  # max workspace for tr
 globalParameters["GranularityThreshold"] = 0.0
 
 # control if a solution is run for a given performance prediction
-# if enabled, the solutions will be run in the order of the performance prediction, from fatest to slowest.
+# if enabled, the solutions will be run in the order of the performance prediction, from fastest to slowest.
 #   PredictionThreshold > 1 : Regular tuning, no sorting with performance prediction.
 #   PredictionThreshold == 1: Regular tuning, but sorted with performance prediction.
-#   PredictionThreshold < 1 : Sort and use the `PredictionThreshold * NumSolutions`-th performance prediction value as the threshold,
-#                              and run the solutions with better prediction value than the threshold. Usually only run the
-#                              `PredictionThreshold`-percent of solutions.
-#   PredictionTHreshold == 0: Run the single solution with best prediction value.
+#   0 < PredictionThreshold < 1 : Sort and run a strict top-K subset by count, where
+#                               K = ceil(PredictionThreshold * NumSolutions). Solutions
+#                               tied at the cutoff are not all admitted automatically.
+#   PredictionThreshold == 0: Run the single solution with best prediction value.
 globalParameters["PredictionThreshold"] = 2.0
 
 globalParameters["PristineOnGPU"] = (

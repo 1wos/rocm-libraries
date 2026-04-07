@@ -58,7 +58,6 @@ namespace TensileLite
             , m_useGPUTimer(args["use-gpu-timer"].as<bool>())
             , m_sleepPercent(args["sleep-percent"].as<int>())
             , m_timeInSolution(0)
-            , m_totalGPUTime(0)
             , m_currentBestWarmUpTime(std::numeric_limits<double>::max())
             , m_flushTimeUs(flushTimeUs)
             , m_skip_slow_solution_ratio(args["skip-slow-solution-ratio"].as<float>())
@@ -161,17 +160,22 @@ namespace TensileLite
 
         void BenchmarkTimer::postSolution()
         {
+            bool sol_is_skipped = (m_skiprun_from_map || m_skip_slow_solution);
+            if(sol_is_skipped)
+            {
+                m_timeInSolution        = double_millis::zero();
+                m_numEnqueuesInSolution = 0;
+                return;
+            }
+
             double timePerEnqueue_us;
             double gflops;
             double gflopsPerCu;
 
             {
                 ScopedTimer timer("post_solution_perf_calc");
-                bool   sol_is_skipped    = (m_skiprun_from_map || m_skip_slow_solution);
-                timePerEnqueue_us = !sol_is_skipped ? double_micros(m_timeInSolution).count()
-                                                                     / m_numEnqueuesInSolution
-                                                                 - m_flushTimeUs
-                                                           : std::numeric_limits<double>::quiet_NaN();
+                timePerEnqueue_us = double_micros(m_timeInSolution).count()
+                                    / m_numEnqueuesInSolution - m_flushTimeUs;
 
                 ContractionSolution::ProjectedPerformance pp;
                 double                                    flopCount = 0;
@@ -191,7 +195,7 @@ namespace TensileLite
                         "[BenchmarkTimer] Failed to cast problem to any ContractionProblem.");
                 }
 
-                gflops      = !sol_is_skipped ? flopCount / (timePerEnqueue_us) / 1000.0 : 0;
+                gflops      = flopCount / (timePerEnqueue_us) / 1000.0;
                 int    tiles       = pp.granularities.tilesPerCu * perf.CUs;
                 int    usedCus     = std::min(tiles, perf.CUs);
                 gflopsPerCu = gflops / usedCus;
@@ -244,18 +248,11 @@ namespace TensileLite
                 return;
 
             double_millis totalTime(0.0);
-
-            // Skip the first warmup event (cold start) when multiple warmups are available
-            size_t warmupStartIdx = startEvents->size() == 1 ? 0 : 1;
-            float enqTime = 0.0f;
+            float         eventMs = 0.0f;
             HIP_CHECK_EXC(hipEventSynchronize(stopEvents->back().back()));
-            for(size_t i = warmupStartIdx; i < startEvents->size(); i++)
-            {
-                HIP_CHECK_EXC(hipEventElapsedTime(
-                    &enqTime, startEvents->at(i).front(), stopEvents->at(i).back()));
-
-                totalTime += double_millis(enqTime);
-            }
+            HIP_CHECK_EXC(
+                hipEventElapsedTime(&eventMs, startEvents->front().front(), stopEvents->back().back()));
+            totalTime = double_millis(eventMs);
             if(totalTime < m_currentBestWarmUpTime)
                 m_currentBestWarmUpTime = totalTime;
             else if(totalTime * m_skip_slow_solution_ratio > m_currentBestWarmUpTime)
@@ -338,12 +335,6 @@ namespace TensileLite
                 HIP_CHECK_EXC(hipDeviceSynchronize());
                 m_startTime = clock::now();
             }
-            else
-            {
-                static_cast<void>(hipEventCreate(&start));
-                static_cast<void>(hipEventCreate(&stop));
-                static_cast<void>(hipEventRecord(start, stream));
-            }
         }
 
         void BenchmarkTimer::postEnqueues(TimingEvents const& startEvents,
@@ -355,40 +346,47 @@ namespace TensileLite
                 HIP_CHECK_EXC(hipDeviceSynchronize());
                 m_endTime = clock::now();
             }
-            else
-            {
-                static_cast<void>(hipEventRecord(stop, stream));
-                static_cast<void>(hipEventSynchronize(stop));
-            }
         }
 
         void BenchmarkTimer::validateEnqueues(std::shared_ptr<ProblemInputs> inputs,
                                               TimingEvents const&            startEvents,
                                               TimingEvents const&            stopEvents)
         {
+            // Bench-topology alignment: main.cpp emits exactly ONE hipEvent pair per
+            // sync that wraps all `num-enqueues-per-sync` kernels. Each sync therefore
+            // contributes one elapsed-time sample covering `num-enqueues-per-sync`
+            // kernels, so `timeInSolution / numEnqueuesInSolution` yields per-kernel
+            // time, matching bench's `gpu_time_used / hot_iters`.
             double_millis totalTime(0.0);
+
+            if(m_curNumEnqueuesPerSync == 0)
+                throw std::runtime_error(
+                    "[BenchmarkTimer] Effective enqueue count was not initialized.");
 
             if(m_useGPUTimer)
             {
-                if((start == nullptr) && (stop == nullptr))
-                {
-                    float enqTime = 0.0f;
-                    HIP_CHECK_EXC(hipEventSynchronize(stopEvents->back().back()));
-                    for(size_t i = 0; i < startEvents->size(); i++)
-                    {
-                        HIP_CHECK_EXC(hipEventElapsedTime(
-                            &enqTime, startEvents->at(i).front(), stopEvents->at(i).back()));
+                if(startEvents->empty() || stopEvents->empty() || stopEvents->back().empty())
+                    throw std::runtime_error(
+                        "[BenchmarkTimer] GPU timing requires at least one timing event pair.");
+                if(startEvents->size() != stopEvents->size())
+                    throw std::runtime_error(
+                        "[BenchmarkTimer] Timing event count mismatch for benchmark enqueues.");
 
-                        totalTime += double_millis(enqTime);
-                    }
-                }
-                else
+                HIP_CHECK_EXC(hipEventSynchronize(stopEvents->back().back()));
+
+                for(size_t logicalIdx = 0; logicalIdx < startEvents->size(); ++logicalIdx)
                 {
+                    auto const& iterationStarts = startEvents[logicalIdx];
+                    auto const& iterationStops  = stopEvents[logicalIdx];
+
+                    if(iterationStarts.empty() || iterationStops.empty())
+                        throw std::runtime_error(
+                            "[BenchmarkTimer] Missing bench-like timing events for a sync window.");
+
                     float eventMs = 0.0f;
-                    static_cast<void>(hipEventElapsedTime(&eventMs, start, stop));
-                    totalTime = double_millis(eventMs);
-                    static_cast<void>(hipEventDestroy(start));
-                    static_cast<void>(hipEventDestroy(stop));
+                    HIP_CHECK_EXC(hipEventElapsedTime(
+                        &eventMs, iterationStarts.front(), iterationStops.back()));
+                    totalTime += double_millis(eventMs);
                 }
             }
             else
@@ -397,10 +395,8 @@ namespace TensileLite
             }
 
             m_timeInSolution += totalTime;
-            m_totalGPUTime += totalTime;
-            m_numEnqueuesInSolution += startEvents->size();
+            m_numEnqueuesInSolution += static_cast<int>(m_curNumEnqueuesPerSync);
 
-            // Report GPU execution time for timing instrumentation
             reportTiming("gpu_kernel_execution", totalTime.count());
 
             if(m_sleepPercent > 0)

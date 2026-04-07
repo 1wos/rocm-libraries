@@ -54,6 +54,7 @@
 #include <numeric>
 #include <omp.h>
 #include <set>
+#include <stdexcept>
 
 extern "C" __global__ void flush_icache()
 {
@@ -1533,6 +1534,7 @@ void testing_matmul_with_bias(const Arguments& arg,
                        << " (Capped to max iters: " << max_iters << ")" << std::endl;
     }
     // Calculating block count end
+
     matmul.resize(block_count, std::vector<hipblasLtMatmulDesc_t>(gemm_count));
 
     for(int i = 0; i < gemm_count; i++)
@@ -2491,6 +2493,121 @@ void testing_matmul_with_bias(const Arguments& arg,
     std::vector<std::vector<void*>> dc(block_count, std::vector<void*>(gemm_count));
     std::vector<std::vector<void*>> dd(block_count, std::vector<void*>(gemm_count));
 
+    std::vector<HipDeviceBuffer>             dRotatingMode0;
+    std::vector<std::vector<unsigned char*>> rotatingA(block_count,
+                                                       std::vector<unsigned char*>(gemm_count, nullptr));
+    std::vector<std::vector<unsigned char*>> rotatingB(block_count,
+                                                       std::vector<unsigned char*>(gemm_count, nullptr));
+    std::vector<std::vector<unsigned char*>> rotatingC(block_count,
+                                                       std::vector<unsigned char*>(gemm_count, nullptr));
+    std::vector<std::vector<unsigned char*>> rotatingD(block_count,
+                                                       std::vector<unsigned char*>(gemm_count, nullptr));
+    std::vector<std::vector<unsigned char*>> rotatingE(block_count,
+                                                       std::vector<unsigned char*>(gemm_count, nullptr));
+    std::vector<std::vector<unsigned char*>> rotatingBias(block_count,
+                                                          std::vector<unsigned char*>(gemm_count, nullptr));
+    std::vector<std::vector<unsigned char*>> rotatingScaleAlpha(
+        block_count, std::vector<unsigned char*>(gemm_count, nullptr));
+    std::vector<std::vector<unsigned char*>> rotatingScaleA(block_count,
+                                                            std::vector<unsigned char*>(gemm_count, nullptr));
+    std::vector<std::vector<unsigned char*>> rotatingScaleB(block_count,
+                                                            std::vector<unsigned char*>(gemm_count, nullptr));
+
+    auto mode0_ptr = [](std::vector<std::vector<unsigned char*>>& mode0Ptrs,
+                        auto&                                      buffer,
+                        int32_t                                    block,
+                        int                                        gemmIdx,
+                        int64_t                                    elementOffset,
+                        size_t                                     elementSize) -> unsigned char* {
+        if(mode0Ptrs[block][gemmIdx] != nullptr)
+            return mode0Ptrs[block][gemmIdx];
+        return buffer[gemmIdx].template as<unsigned char>() + block * elementOffset * elementSize;
+    };
+
+    auto mode0_c_ptr = [&](int32_t block, int gemmIdx) -> unsigned char* {
+        if(get_computeInterface(h_beta[gemmIdx], Tc) == 0)
+        {
+            (void)block;
+            if(rotatingD[0][gemmIdx] != nullptr)
+                return rotatingD[0][gemmIdx];
+            return (*dDp)[gemmIdx].as<unsigned char>();
+        }
+        return mode0_ptr(rotatingC, dC, block, gemmIdx, size_C[gemmIdx], realDataTypeSize(To));
+    };
+
+    if(rotating > 0 && block_count > 1 && !do_grouped_gemm)
+    {
+        dRotatingMode0.emplace_back(HIP_R_8U, totalRotatingSizeNeeded * (block_count - 1), HMM);
+        CHECK_DEVICE_ALLOCATION(dRotatingMode0.back().memcheck());
+        unsigned char* rotatingBase = dRotatingMode0.back().as<unsigned char>();
+        int64_t        rotatingOffset = 0;
+        auto copy_rotating_mode0 = [&](const void* src, int64_t bytes) -> unsigned char* {
+            if(src == nullptr || bytes <= 0)
+                return nullptr;
+            unsigned char* dst = rotatingBase + rotatingOffset;
+            auto copyStatus
+                = hipMemcpyAsync(dst, src, bytes, hipMemcpyDeviceToDevice, stream);
+            if(copyStatus != hipSuccess)
+                throw std::runtime_error("hipMemcpyAsync failed while building mode0 rotating buffer");
+            rotatingOffset += bytes;
+            return dst;
+        };
+
+        for(int32_t b = 1; b < block_count; b++)
+        {
+            for(int gemmIdx = 0; gemmIdx < gemm_count; gemmIdx++)
+            {
+                rotatingA[b][gemmIdx] = copy_rotating_mode0(
+                    dA[gemmIdx].as<unsigned char>()
+                        + b * size_dA[gemmIdx] * realDataTypeSize(TiA),
+                    size_dA[gemmIdx] * realDataTypeSize(TiA));
+                rotatingB[b][gemmIdx] = copy_rotating_mode0(
+                    dB[gemmIdx].as<unsigned char>()
+                        + b * size_dB[gemmIdx] * realDataTypeSize(TiB),
+                    size_dB[gemmIdx] * realDataTypeSize(TiB));
+                // beta == 0 does not consume C; leave rotatingC null so mode0_c_ptr
+                // keeps using the client-compatible base-D C pointer.
+                if(get_computeInterface(h_beta[gemmIdx], Tc) != 0)
+                    rotatingC[b][gemmIdx] = copy_rotating_mode0(
+                        dC[gemmIdx].as<unsigned char>()
+                            + b * size_C[gemmIdx] * realDataTypeSize(To),
+                        size_C[gemmIdx] * realDataTypeSize(To));
+                rotatingD[b][gemmIdx] = copy_rotating_mode0(
+                    (*dDp)[gemmIdx].as<unsigned char>()
+                        + b * size_D[gemmIdx] * realDataTypeSize(To),
+                    size_D[gemmIdx] * realDataTypeSize(To));
+                rotatingE[b][gemmIdx] = copy_rotating_mode0(
+                    arg.use_e
+                        ? dE[gemmIdx].as<unsigned char>()
+                              + b * size_E[gemmIdx] * realDataTypeSize(Taux)
+                        : nullptr,
+                    size_E[gemmIdx] * realDataTypeSize(Taux));
+                rotatingScaleA[b][gemmIdx] = copy_rotating_mode0(
+                    arg.scaleA != hipblaslt_scaling_format::none
+                        ? dScaleA[gemmIdx].as<unsigned char>() + b * size_scaleAVec[gemmIdx]
+                        : nullptr,
+                    size_scaleAVec[gemmIdx] * realDataTypeSize(Talpha));
+                rotatingScaleB[b][gemmIdx] = copy_rotating_mode0(
+                    arg.scaleB != hipblaslt_scaling_format::none
+                        ? dScaleB[gemmIdx].as<unsigned char>() + b * size_scaleBVec[gemmIdx]
+                        : nullptr,
+                    size_scaleBVec[gemmIdx] * realDataTypeSize(Talpha));
+                rotatingBias[b][gemmIdx] = copy_rotating_mode0(
+                    arg.bias_vector
+                        ? dBias[gemmIdx].as<unsigned char>()
+                              + b * size_bias[gemmIdx] * realDataTypeSize(Tbias)
+                        : nullptr,
+                    size_bias[gemmIdx] * realDataTypeSize(Tbias));
+                rotatingScaleAlpha[b][gemmIdx] = copy_rotating_mode0(
+                    arg.scaleAlpha_vector
+                        ? dScaleAlphaVec[gemmIdx].as<unsigned char>()
+                              + b * size_scaleAlphaVec[gemmIdx] * realDataTypeSize(Talpha)
+                        : nullptr,
+                    size_scaleAlphaVec[gemmIdx] * realDataTypeSize(Talpha));
+            }
+        }
+    }
+
     for(int32_t b = 0; b < block_count; b++)
     {
         if(!do_grouped_gemm)
@@ -2530,8 +2647,12 @@ void testing_matmul_with_bias(const Arguments& arg,
                 if(arg.bias_vector)
                 {
                     bias_type = arg.bias_type;
-                    bias_addr = (void*)(dBias[gemmIdx].as<char>()
-                                        + b * size_bias[gemmIdx] * realDataTypeSize(bias_type));
+                    bias_addr = (void*)mode0_ptr(rotatingBias,
+                                                 dBias,
+                                                 b,
+                                                 gemmIdx,
+                                                 size_bias[gemmIdx],
+                                                 realDataTypeSize(bias_type));
                 }
                 if(arg.use_e)
                 {
@@ -2552,26 +2673,27 @@ void testing_matmul_with_bias(const Arguments& arg,
                     extepilogue[gemmIdx].setScalingBType(
                         arg.scaleB == hipblaslt_scaling_format::Vector ? svector : sscale);
                 }
-                extinputs[b][gemmIdx].setA((void*)((dA[gemmIdx].as<char>())
-                                                   + b * size_dA[gemmIdx] * realDataTypeSize(TiA)));
-                extinputs[b][gemmIdx].setB((void*)((dB[gemmIdx].as<char>())
-                                                   + b * size_dB[gemmIdx] * realDataTypeSize(TiB)));
-                extinputs[b][gemmIdx].setC(
-                    (void*)((dC[gemmIdx].as<char>()) + b * size_C[gemmIdx] * realDataTypeSize(To)));
-                extinputs[b][gemmIdx].setD((void*)(((*dDp)[gemmIdx].as<char>())
-                                                   + b * size_D[gemmIdx] * realDataTypeSize(To)));
+                extinputs[b][gemmIdx].setA((void*)mode0_ptr(
+                    rotatingA, dA, b, gemmIdx, size_dA[gemmIdx], realDataTypeSize(TiA)));
+                extinputs[b][gemmIdx].setB((void*)mode0_ptr(
+                    rotatingB, dB, b, gemmIdx, size_dB[gemmIdx], realDataTypeSize(TiB)));
+                extinputs[b][gemmIdx].setC((void*)mode0_c_ptr(b, gemmIdx));
+                extinputs[b][gemmIdx].setD((void*)mode0_ptr(
+                    rotatingD, *dDp, b, gemmIdx, size_D[gemmIdx], realDataTypeSize(To)));
                 extinputs[b][gemmIdx].setAlpha(&h_alpha[gemmIdx]);
                 extinputs[b][gemmIdx].setBeta(&h_beta[gemmIdx]);
                 extinputs[b][gemmIdx].setBias(bias_addr);
                 extinputs[b][gemmIdx].setScaleA(
                     (arg.scaleA == hipblaslt_scaling_format::Scalar
                      || arg.scaleA == hipblaslt_scaling_format::Vector)
-                        ? (void*)((dScaleA[gemmIdx].as<char>()) + b * size_scaleAVec[gemmIdx])
+                        ? (void*)mode0_ptr(
+                              rotatingScaleA, dScaleA, b, gemmIdx, size_scaleAVec[gemmIdx], 1)
                         : nullptr);
                 extinputs[b][gemmIdx].setScaleB(
                     (arg.scaleB == hipblaslt_scaling_format::Scalar
                      || arg.scaleB == hipblaslt_scaling_format::Vector)
-                        ? (void*)((dScaleB[gemmIdx].as<char>()) + b * size_scaleBVec[gemmIdx])
+                        ? (void*)mode0_ptr(
+                              rotatingScaleB, dScaleB, b, gemmIdx, size_scaleBVec[gemmIdx], 1)
                         : nullptr);
                 extinputs[b][gemmIdx].setScaleC(arg.scaleC ? dScaleC[gemmIdx].as<char>() : nullptr);
                 extinputs[b][gemmIdx].setScaleD(arg.scaleD ? dScaleD[gemmIdx].as<char>() : nullptr);
@@ -2580,12 +2702,16 @@ void testing_matmul_with_bias(const Arguments& arg,
                 extinputs[b][gemmIdx].setAmaxD(arg.amaxD ? dAmaxD[gemmIdx].as<char>() : nullptr);
                 if(arg.use_e)
                     extinputs[b][gemmIdx].setAux(
-                        (void*)((dE[gemmIdx].as<char>())
-                                + b * size_E[gemmIdx] * realDataTypeSize(Taux)));
+                        (void*)mode0_ptr(
+                            rotatingE, dE, b, gemmIdx, size_E[gemmIdx], realDataTypeSize(Taux)));
                 if(arg.scaleAlpha_vector)
                     extinputs[b][gemmIdx].setScaleAlphaVec(
-                        (void*)((dScaleAlphaVec[gemmIdx].as<char>())
-                                + b * size_scaleAlphaVec[gemmIdx] * realDataTypeSize(Talpha)));
+                        (void*)mode0_ptr(rotatingScaleAlpha,
+                                         dScaleAlphaVec,
+                                         b,
+                                         gemmIdx,
+                                         size_scaleAlphaVec[gemmIdx],
+                                         realDataTypeSize(Talpha)));
             }
         }
         extproblemtype.setOpA(transA);
@@ -2613,14 +2739,13 @@ void testing_matmul_with_bias(const Arguments& arg,
         {
             for(int32_t b = 0; b < block_count; b++)
             {
-                da[b][gemmIdx] = (void*)((dA[gemmIdx].as<char>())
-                                         + b * size_dA[gemmIdx] * realDataTypeSize(TiA));
-                db[b][gemmIdx] = (void*)((dB[gemmIdx].as<char>())
-                                         + b * size_dB[gemmIdx] * realDataTypeSize(TiB));
-                dc[b][gemmIdx] = (void*)((dC[gemmIdx].as<char>())
-                                         + b * size_C[gemmIdx] * realDataTypeSize(To));
-                dd[b][gemmIdx] = (void*)(((*dDp)[gemmIdx].as<char>())
-                                         + b * size_D[gemmIdx] * realDataTypeSize(To));
+                da[b][gemmIdx] = (void*)mode0_ptr(
+                    rotatingA, dA, b, gemmIdx, size_dA[gemmIdx], realDataTypeSize(TiA));
+                db[b][gemmIdx] = (void*)mode0_ptr(
+                    rotatingB, dB, b, gemmIdx, size_dB[gemmIdx], realDataTypeSize(TiB));
+                dc[b][gemmIdx] = (void*)mode0_c_ptr(b, gemmIdx);
+                dd[b][gemmIdx] = (void*)mode0_ptr(
+                    rotatingD, *dDp, b, gemmIdx, size_D[gemmIdx], realDataTypeSize(To));
             }
         }
     }
@@ -2735,7 +2860,9 @@ void testing_matmul_with_bias(const Arguments& arg,
                                 (dB[0].as<char>()) + b * size_dB[0] * realDataTypeSize(TiB),
                                 matB[0],
                                 &h_beta[0],
-                                (dC[0].as<char>()) + b * size_C[0] * realDataTypeSize(To),
+                                get_computeInterface(h_beta[0], Tc) == 0
+                                    ? dC[0].as<char>()
+                                    : (dC[0].as<char>()) + b * size_C[0] * realDataTypeSize(To),
                                 matC[0],
                                 ((*dDp)[0].as<char>()) + b * size_D[0] * realDataTypeSize(To),
                                 matD[0]));
@@ -2928,7 +3055,9 @@ void testing_matmul_with_bias(const Arguments& arg,
                             (dB[0].as<char>()) + b * size_dB[0] * realDataTypeSize(TiB),
                             matB[0],
                             &h_beta[0],
-                            (dC[0].as<char>()) + b * size_C[0] * realDataTypeSize(To),
+                            get_computeInterface(h_beta[0], Tc) == 0
+                                ? dC[0].as<char>()
+                                : (dC[0].as<char>()) + b * size_C[0] * realDataTypeSize(To),
                             matC[0],
                             ((*dDp)[0].as<char>()) + b * size_D[0] * realDataTypeSize(To),
                             matD[0]));
@@ -3110,7 +3239,9 @@ void testing_matmul_with_bias(const Arguments& arg,
                             (dB[0].as<char>()) + b * size_dB[0] * realDataTypeSize(TiB),
                             matB[0],
                             &h_beta[0],
-                            (dC[0].as<char>()) + b * size_C[0] * realDataTypeSize(To),
+                            get_computeInterface(h_beta[0], Tc) == 0
+                                ? dC[0].as<char>()
+                                : (dC[0].as<char>()) + b * size_C[0] * realDataTypeSize(To),
                             matC[0],
                             ((*dDp)[0].as<char>()) + b * size_D[0] * realDataTypeSize(To),
                             matD[0]));
@@ -3766,22 +3897,43 @@ void testing_matmul_with_bias(const Arguments& arg,
                                                   tuningVec[heuristicTuningIndex[sol]],
                                                   *dWorkspace));
                     }
-                    if(arg.skip_slow_solution_ratio)
+                    if(arg.skip_slow_solution_ratio && !arg.use_gpu_timer)
                         pre_gpu_time(
                             arg.use_gpu_timer, event_gpu_time_start, gpu_time_used, stream);
                     for(int i = 0; i < number_cold_calls; i++)
                     {
-                        CHECK_HIPBLASLT_ERROR(gemmVec[i % block_count].run(stream));
+                        hipEvent_t startEvent
+                            = (arg.skip_slow_solution_ratio && arg.use_gpu_timer && i == 0)
+                                  ? event_gpu_time_start
+                                  : nullptr;
+                        hipEvent_t stopEvent
+                            = (arg.skip_slow_solution_ratio && arg.use_gpu_timer
+                               && i + 1 == number_cold_calls)
+                                  ? event_gpu_time_end
+                                  : nullptr;
+                        CHECK_HIPBLASLT_ERROR(
+                            gemmVec[i % block_count].run(stream, startEvent, stopEvent));
                         if(i == 0 && (arg.unit_check || arg.norm_check || arg.allclose_check))
                             copy_gemm_to_host(stream, gemm_count, hD_1, (*dDp));
                     }
                     if(arg.skip_slow_solution_ratio)
                     {
-                        post_gpu_time(arg.use_gpu_timer,
-                                      event_gpu_time_start,
-                                      event_gpu_time_end,
-                                      gpu_time_used,
-                                      stream);
+                        if(arg.use_gpu_timer)
+                        {
+                            CHECK_HIP_ERROR(hipEventSynchronize(event_gpu_time_end));
+                            float gpu_time_ms;
+                            CHECK_HIP_ERROR(hipEventElapsedTime(
+                                &gpu_time_ms, event_gpu_time_start, event_gpu_time_end));
+                            gpu_time_used = gpu_time_ms * 1000;
+                        }
+                        else
+                        {
+                            post_gpu_time(arg.use_gpu_timer,
+                                          event_gpu_time_start,
+                                          event_gpu_time_end,
+                                          gpu_time_used,
+                                          stream);
+                        }
                         best_warm_time
                             = best_warm_time < gpu_time_used ? best_warm_time : gpu_time_used;
                         if((gpu_time_used * arg.skip_slow_solution_ratio) > best_warm_time)
@@ -3796,11 +3948,18 @@ void testing_matmul_with_bias(const Arguments& arg,
                         }
                     }
                     perf_monitor->start();
-                    pre_gpu_time(arg.use_gpu_timer, event_gpu_time_start, gpu_time_used, stream);
+                    if(!arg.use_gpu_timer)
+                        pre_gpu_time(arg.use_gpu_timer, event_gpu_time_start, gpu_time_used, stream);
 
                     for(int i = 0; i < number_hot_calls; i++)
                     {
-                        CHECK_HIPBLASLT_ERROR(gemmVec[i % block_count].run(stream));
+                        hipEvent_t startEvent
+                            = (arg.use_gpu_timer && i == 0) ? event_gpu_time_start : nullptr;
+                        hipEvent_t stopEvent = (arg.use_gpu_timer && i + 1 == number_hot_calls)
+                                                   ? event_gpu_time_end
+                                                   : nullptr;
+                        CHECK_HIPBLASLT_ERROR(
+                            gemmVec[i % block_count].run(stream, startEvent, stopEvent));
                         if(arg.flush)
                             hipLaunchKernelGGL(flush_icache, dim3(gpu_block3), dim3(64), 0, stream);
                     }
@@ -3830,8 +3989,10 @@ void testing_matmul_with_bias(const Arguments& arg,
                                     + (i % block_count) * size_dB[0] * realDataTypeSize(TiB),
                                 matB[0],
                                 &(h_beta[0]),
-                                dC[0].as<char>()
-                                    + (i % block_count) * size_C[0] * realDataTypeSize(To),
+                                get_computeInterface(h_beta[0], Tc) == 0
+                                    ? dC[0].as<char>()
+                                    : dC[0].as<char>()
+                                          + (i % block_count) * size_C[0] * realDataTypeSize(To),
                                 matC[0],
                                 (*dDp)[0].as<char>()
                                     + (i % block_count) * size_D[0] * realDataTypeSize(To),
@@ -3886,8 +4047,10 @@ void testing_matmul_with_bias(const Arguments& arg,
                                     + (i % block_count) * size_dB[0] * realDataTypeSize(TiB),
                                 matB[0],
                                 &(h_beta[0]),
-                                dC[0].as<char>()
-                                    + (i % block_count) * size_C[0] * realDataTypeSize(To),
+                                get_computeInterface(h_beta[0], Tc) == 0
+                                    ? dC[0].as<char>()
+                                    : dC[0].as<char>()
+                                          + (i % block_count) * size_C[0] * realDataTypeSize(To),
                                 matC[0],
                                 (*dDp)[0].as<char>()
                                     + (i % block_count) * size_D[0] * realDataTypeSize(To),
@@ -3901,11 +4064,22 @@ void testing_matmul_with_bias(const Arguments& arg,
                             hipLaunchKernelGGL(flush_icache, dim3(gpu_block3), dim3(64), 0, stream);
                     }
                 }
-                post_gpu_time(arg.use_gpu_timer,
-                              event_gpu_time_start,
-                              event_gpu_time_end,
-                              gpu_time_used,
-                              stream);
+                if(arg.use_ext && arg.use_gpu_timer)
+                {
+                    CHECK_HIP_ERROR(hipEventSynchronize(event_gpu_time_end));
+                    float gpu_time_ms;
+                    CHECK_HIP_ERROR(
+                        hipEventElapsedTime(&gpu_time_ms, event_gpu_time_start, event_gpu_time_end));
+                    gpu_time_used = gpu_time_ms * 1000;
+                }
+                else
+                {
+                    post_gpu_time(arg.use_gpu_timer,
+                                  event_gpu_time_start,
+                                  event_gpu_time_end,
+                                  gpu_time_used,
+                                  stream);
+                }
                 perf_monitor->stop();
             }
             else

@@ -40,7 +40,6 @@ namespace TensileLite
 {
     namespace Client
     {
-
         class BenchmarkTimer : public RunListener
         {
         public:
@@ -120,16 +119,12 @@ namespace TensileLite
             clock::time_point m_startTime;
             clock::time_point m_endTime;
 
-            hipEvent_t start = nullptr;
-            hipEvent_t stop  = nullptr;
-
             using double_millis = std::chrono::duration<double, std::milli>;
             using double_micros = std::chrono::duration<double, std::micro>;
             using double_nanos  = std::chrono::duration<double, std::nano>;
             using prob_sol_map  = std::map<int, int>;
 
             double_millis m_timeInSolution;
-            double_millis m_totalGPUTime;
             double_millis m_currentBestWarmUpTime;
             float         m_flushTimeUs;
             float         m_skip_slow_solution_ratio;
