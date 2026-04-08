@@ -73,6 +73,12 @@ namespace rocisa
             return "F8B8N";
         case rocisa::DataType::BFloat8Float8_fnuz:
             return "B8F8N";
+        case::rocisa::DataType::Float6:
+            return "F6";
+        case rocisa::DataType::BFloat6:
+            return "B6";
+        case rocisa::DataType::Float4:
+            return "F4";
         case rocisa::DataType::Count:;
         }
         return "Invalid";
