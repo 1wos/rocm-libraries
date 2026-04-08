@@ -1021,6 +1021,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
     static constexpr auto QuantType        = Base::QuantType;
     static constexpr auto PreshuffleB      = Base::PreshuffleB;
     static constexpr auto TiledMMAPermuteN = Base::TiledMMAPermuteN;
+    static constexpr auto FuseAQuant       = Base::FuseAQuant;
 
     protected:
     void SetUpQuantTypeSpecific() {}
@@ -1288,9 +1289,13 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
             using GemmPipeline = std::conditional_t<
                 eight_waves,
                 ck_tile::ABQuantGemmPipelineAgBgCrEightWaves<PipelineProblem>,
-                std::conditional_t<PreshuffleB,
-                                   ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
-                                   ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
+                std::conditional_t<
+                    PreshuffleB,
+                    ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
+                    std::conditional_t<
+                        FuseAQuant,
+                        ck_tile::FusedAQuantBQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                        ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<typename PipelineProblem::ComputeDataType,
