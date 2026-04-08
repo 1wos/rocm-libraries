@@ -136,7 +136,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using DsDataType = ck_tile::tuple<>;
 
     static constexpr bool Persistent =
-        ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
+        ck_tile::tuple_element_or_default_t<Tuple, 10, std::false_type>::value;
     // TODO: expose tile size through test t-param ?
 
     template <typename GemmConfig, bool PadM, bool PadN, bool PadK, bool Preshuffle>
