@@ -728,6 +728,19 @@ namespace TensileLite
             if(problem.betaType() == rocisa::DataType::Half)
                 args.append("beta_2", inputs.beta, problem.betaType());
         }
+
+        if(sizeMapping.expertSchedulingMode > 0)
+        {
+            int32_t esmSupported = 0;
+#if HIP_VERSION >= 70353390
+            int deviceId = 0;
+            HIP_CHECK_EXC(hipGetDevice(&deviceId));
+            HIP_CHECK_EXC(hipDeviceGetAttribute(
+                &esmSupported, hipDeviceAttributeExpertSchedMode, deviceId));
+#endif
+            args.template append<int32_t>("ESMsupportedWorkaround", esmSupported);
+        }
+
         // Additional check for General Batched GEMM until GSU and StreamK are supported
         // in General Batched GEMM
         if(sizeMapping.streamK != 0)
@@ -1493,7 +1506,7 @@ namespace TensileLite
                           << ", StaggerUStrideShift: " << autoStaggerUStrideShift << std::endl;
             }
             if(problem.batchMode() == ContractionProblemGemm::BATCHMODE::POINTER_ARRAY)
-            {           
+            {
                 kernelArgs<T_Debug, false>( 1,
                                             3,
                                             rv.args,
@@ -1506,10 +1519,10 @@ namespace TensileLite
                                             autoStaggerUMapping,
                                             autoStaggerU,
                                             autoStaggerUStrideShift,
-                                            autoGsuVal);                                           
+                                            autoGsuVal);
             }
             else
-            {   
+            {
                 kernelArgs<T_Debug, false>( 1,
                                             0,
                                             rv.args,
@@ -1523,7 +1536,7 @@ namespace TensileLite
                                             autoStaggerU,
                                             autoStaggerUStrideShift,
                                             autoGsuVal);
-            }            
+            }
         }
         singleCallArgs<T_Debug, true>(
             problem, inputs, 0, &hardware, problemNumGroupTiles, rv.numWorkGroups, rv.args, sk);
@@ -1533,8 +1546,8 @@ namespace TensileLite
             rv.args.append<void const*>("dstD", inputs.d);
             // MBSK: synchronizer address, MB: null address
             rv.args.append<void const*>("Synchronizer",
-                                        gsuSettings.globalAccumulation == 3 
-                                        ? inputs.Synchronizer 
+                                        gsuSettings.globalAccumulation == 3
+                                        ? inputs.Synchronizer
                                         : NULL);
             rv.args.append<uint32_t>("GSUSync", 0);
         }
@@ -1958,7 +1971,7 @@ namespace TensileLite
                                                        KA&                    args,
                                                        StreamKSettings const& sk,
                                                        uint32_t               autoGsuVal,
-                                                       uint32_t               additionalPaddingPerBatchGeneralBatch) const                                                       
+                                                       uint32_t               additionalPaddingPerBatchGeneralBatch) const
     {
         TensorDescriptor const& c = problem.c();
         TensorDescriptor const& d = problem.d();
@@ -2129,13 +2142,13 @@ namespace TensileLite
         {
             args.template append<uint32_t>("factorDim", (uint32_t)problem.getParams().factorDim());
         }
-        // Adding the batchmode kernel argument for post GSU kernel to determine 
+        // Adding the batchmode kernel argument for post GSU kernel to determine
         // how to index the batch dimension in Strided Batch versus General Batched.
         if(problemType.groupedGemm == false)
         {
             ContractionProblemGemm::BATCHMODE batchMode = problem.batchMode();
             args.template append<uint32_t>("batchMode", static_cast<uint32_t>(batchMode));
-            args.template append<uint32_t>("additionalPaddingPerBatch", additionalPaddingPerBatchGeneralBatch);        
+            args.template append<uint32_t>("additionalPaddingPerBatch", additionalPaddingPerBatchGeneralBatch);
         }
     }
 
