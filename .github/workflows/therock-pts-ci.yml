@@ -57,7 +57,7 @@ jobs:
             echo "Error: No components selected"
             exit 1
           fi
-          JSON_ARRAY=$(printf '%s\n' "${components[@]}" | jq -R . | jq -s .)
+          JSON_ARRAY=$(printf '%s\n' "${components[@]}" | jq -R . | jq -sc .)
           echo "matrix=$JSON_ARRAY" >> $GITHUB_OUTPUT
           echo "Selected components: ${components[*]}"
   test_component:
