@@ -59,7 +59,7 @@ jobs:
           echo "matrix=$JSON_ARRAY" >> $GITHUB_OUTPUT
           echo "Selected components: ${components[*]}"
   test_component:
-    name: 'Test ${{ matrix.component }}'
+    name: 'PTS - ${{ matrix.component }}'
     needs: setup_matrix
     runs-on: ${{ inputs.test_runs_on || 'linux-gfx942-1gpu-ccs-ossci-rocm' }}
     timeout-minutes: 210
@@ -104,4 +104,4 @@ jobs:
 
       - name: Test
         run: |
-            python3 -m pytest -s -v --tb=short --rock-dir=${OUTPUT_ARTIFACTS_DIR} rocm-libraries/test/pts/tests_pts.py -k ${{ matrix.component }}
+          python3 -m pytest -s -v --tb=short --rock-dir=./therock-build rocm-libraries/test/pts/tests_pts.py -k ${{ matrix.component }}
