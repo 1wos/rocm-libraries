@@ -48,13 +48,11 @@ jobs:
       - name: Build component matrix from inputs
         id: set_matrix
         run: |
-          # For push events, default to testing rocrand
-          if [[ "${{ github.event_name }}" == "push" ]]; then
+          components=()
+          # For push events, default to testing all components
+          if [[ "${{ github.event_name }}" == "push" ]] || [[ "${{ inputs.rocrand }}" == "true" ]]; then
             components+=("rocrand")
-          else
-            components=()
           fi
-          ${{ inputs.rocrand == true }} && components+=("rocrand")
           if [ ${#components[@]} -eq 0 ]; then
             echo "Error: No components selected"
             exit 1
