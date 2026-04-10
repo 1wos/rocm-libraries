@@ -8,16 +8,12 @@ on:
     inputs:
       artifact_run_id:
         type: string
-        default: ""
       amdgpu_families:
         type: string
-        default: "gfx94X"
       test_runs_on:
         type: string
-        default: "linux-gfx942-1gpu-ossci-rocm"
       rocrand:
         type: boolean
-        default: true
   workflow_dispatch:
     inputs:
       artifact_run_id:
@@ -31,7 +27,7 @@ on:
       test_runs_on:
         type: string
         description: "Enabled to choose the Test Target"
-        default: "linux-gfx942-1gpu-ossci-rocm"
+        default: "linux-gfx942-1gpu-css-ossci-rocm"
       rocrand:
         type: boolean
         description: "Test rocrand"
@@ -65,7 +61,7 @@ jobs:
   test_component:
     name: 'Test ${{ matrix.component }}'
     needs: setup_matrix
-    runs-on: ${{ inputs.test_runs_on || 'linux-gfx942-1gpu-ossci-rocm' }}
+    runs-on: ${{ inputs.test_runs_on || 'linux-gfx942-1gpu-ccs-ossci-rocm' }}
     timeout-minutes: 210
     container:
       image: ${{ 'ghcr.io/rocm/no_rocm_image_ubuntu24_04@sha256:4150afe4759d14822f0e3f8930e1124f26e11f68b5c7b91ec9a02b20b1ebbb98' || null }}
@@ -89,8 +85,8 @@ jobs:
       ARTIFACT_RUN_ID: "${{ inputs.artifact_run_id != '' && inputs.artifact_run_id || github.run_id }}"
       OUTPUT_ARTIFACTS_DIR: "./build"
       THEROCK_BIN_DIR: "./build/bin"
-      AMDGPU_FAMILIES: ${{ inputs.amdgpu_families }}
-      ARTIFACT_GROUP: ${{ inputs.amdgpu_families }}
+      AMDGPU_FAMILIES: ${{ inputs.amdgpu_families || 'gfx94X' }}
+      ARTIFACT_GROUP: ${{ inputs.amdgpu_families || 'gfx94X' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -108,7 +104,7 @@ jobs:
         uses: './.github/actions/setup_test_environment'
         with:
           ARTIFACT_RUN_ID: ${{ env.ARTIFACT_RUN_ID }}
-          ARTIFACT_GROUP: ${{ inputs.amdgpu_families }}
+          ARTIFACT_GROUP: ${{ inputs.amdgpu_families || 'gfx94X' }}
           OUTPUT_ARTIFACTS_DIR: ${{ env.OUTPUT_ARTIFACTS_DIR }}
           VENV_DIR: ${{ env.VENV_DIR }}
           IS_PR_FROM_FORK: ${{ github.event.pull_request.head.repo.fork }}
