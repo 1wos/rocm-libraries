@@ -1,0 +1,98 @@
+name: Test component
+
+on:
+  push:
+    branches:
+      - users/madkasul/pts
+  workflow_call:
+    inputs:
+      artifact_run_id:
+        type: string
+        default: ""
+      amdgpu_families:
+        type: string
+      test_runs_on:
+        type: string
+      components:
+        type: string
+  workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        type: string
+        description: "Enabled to pull Linux artifacts using artifact_run_id"
+        default: ""
+      amdgpu_families:
+        type: string
+        description: 'The AMD GPU family to test. ex: gfx94X, gfx120X'
+        default: "gfx94X"
+      test_runs_on:
+        type: string
+        description: "Enabled to choose the Test Target"
+        default: "linux-gfx942-1gpu-ossci-rocm"
+      components:
+        type: string
+        description: 'The list of tests to run with comma separator. (ex: "rocrand,rocblas,...")'
+        default: "rocrand"
+
+permissions:
+  contents: read
+
+jobs:
+  test_component:
+    name: 'Test ${{ matrix.component }}'
+    runs-on: ${{ inputs.test_runs_on }}
+    timeout-minutes: 210
+    container:
+      image: ${{ 'ghcr.io/rocm/no_rocm_image_ubuntu24_04@sha256:4150afe4759d14822f0e3f8930e1124f26e11f68b5c7b91ec9a02b20b1ebbb98' || null }}
+      options: --ipc host
+        --group-add video
+        --device /dev/kfd
+        --device /dev/dri
+        --group-add 993
+        --group-add 992
+        --group-add 110
+        --env-file /etc/podinfo/gha-gpu-isolation-settings
+    strategy:
+      fail-fast: false
+      matrix:
+        component: ${{ split(inputs.components, ',') }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VENV_DIR: ${{ github.workspace }}/.venv
+      ARTIFACT_RUN_ID: "${{ inputs.artifact_run_id != '' && inputs.artifact_run_id || github.run_id }}"
+      OUTPUT_ARTIFACTS_DIR: "./build"
+      THEROCK_BIN_DIR: "./build/bin"
+      AMDGPU_FAMILIES: ${{ inputs.amdgpu_families }}
+      ARTIFACT_GROUP: ${{ inputs.amdgpu_families }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: "ROCm/TheRock"
+          ref: b68757b3461145b85eabec29cea1223027a56da0 # 2026-04-01
+
+      - name: Checkout rocm-libraries repository for scripts
+        uses: actions/checkout@v4
+        with:
+          path: rocm-libraries
+
+      - name: Run setup test environment workflow
+        timeout-minutes: 15
+        uses: './.github/actions/setup_test_environment'
+        with:
+          ARTIFACT_RUN_ID: ${{ env.ARTIFACT_RUN_ID }}
+          ARTIFACT_GROUP: ${{ inputs.amdgpu_families }}
+          OUTPUT_ARTIFACTS_DIR: ${{ env.OUTPUT_ARTIFACTS_DIR }}
+          VENV_DIR: ${{ env.VENV_DIR }}
+          IS_PR_FROM_FORK: ${{ github.event.pull_request.head.repo.fork }}
+
+      - name: Driver / GPU sanity check
+        timeout-minutes: 3
+        run: |
+          python ./build_tools/print_driver_gpu_info.py
+
+      - name: Test
+        run: |
+            python3 -m pytest -s -v --tb=short --rock-dir=${OUTPUT_ARTIFACTS_DIR} rocm-libraries/test/pts/tests_pts.py -k ${{ matrix.component }}
