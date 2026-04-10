@@ -8,7 +8,7 @@ on:
     inputs:
       artifact_run_id:
         type: string
-      amdgpu_families:
+      amdgpu_family:
         type: string
       test_runs_on:
         type: string
@@ -20,7 +20,7 @@ on:
         type: string
         description: "Enabled to pull Linux artifacts using artifact_run_id"
         default: ""
-      amdgpu_families:
+      amdgpu_family:
         type: string
         description: 'The AMD GPU family to test. ex: gfx94X, gfx120X'
         default: "gfx94X"
@@ -80,13 +80,6 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      VENV_DIR: ${{ github.workspace }}/.venv
-      ARTIFACT_RUN_ID: "${{ inputs.artifact_run_id != '' && inputs.artifact_run_id || github.run_id }}"
-      OUTPUT_ARTIFACTS_DIR: "./build"
-      THEROCK_BIN_DIR: "./build/bin"
-      AMDGPU_FAMILIES: ${{ inputs.amdgpu_families || 'gfx94X' }}
-      ARTIFACT_GROUP: ${{ inputs.amdgpu_families || 'gfx94X' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -94,25 +87,20 @@ jobs:
           repository: "ROCm/TheRock"
           ref: b68757b3461145b85eabec29cea1223027a56da0 # 2026-04-01
 
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: 3.12
+
+      - name: Install TheRock
+        run: |
+          pip install -r requirements-test.txt
+          python3 build_tools/install_rocm_from_artifacts.py --tests --amdgpu-family ${{ inputs.amdgpu_family || 'gfx94X' }} --latest-release
+
       - name: Checkout rocm-libraries repository for scripts
         uses: actions/checkout@v4
         with:
           path: rocm-libraries
-
-      - name: Run setup test environment workflow
-        timeout-minutes: 15
-        uses: './.github/actions/setup_test_environment'
-        with:
-          ARTIFACT_RUN_ID: ${{ env.ARTIFACT_RUN_ID }}
-          ARTIFACT_GROUP: ${{ inputs.amdgpu_families || 'gfx94X' }}
-          OUTPUT_ARTIFACTS_DIR: ${{ env.OUTPUT_ARTIFACTS_DIR }}
-          VENV_DIR: ${{ env.VENV_DIR }}
-          IS_PR_FROM_FORK: ${{ github.event.pull_request.head.repo.fork }}
-
-      - name: Driver / GPU sanity check
-        timeout-minutes: 3
-        run: |
-          python ./build_tools/print_driver_gpu_info.py
 
       - name: Test
         run: |
