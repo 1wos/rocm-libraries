@@ -11,8 +11,10 @@ on:
         default: ""
       amdgpu_families:
         type: string
+        default: "gfx94X"
       test_runs_on:
         type: string
+        default: "linux-gfx942-1gpu-ossci-rocm"
       rocrand:
         type: boolean
         default: true
