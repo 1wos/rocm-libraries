@@ -65,7 +65,7 @@ jobs:
   test_component:
     name: 'Test ${{ matrix.component }}'
     needs: setup_matrix
-    runs-on: ${{ inputs.test_runs_on }}
+    runs-on: ${{ inputs.test_runs_on || 'linux-gfx942-1gpu-ossci-rocm' }}
     timeout-minutes: 210
     container:
       image: ${{ 'ghcr.io/rocm/no_rocm_image_ubuntu24_04@sha256:4150afe4759d14822f0e3f8930e1124f26e11f68b5c7b91ec9a02b20b1ebbb98' || null }}
