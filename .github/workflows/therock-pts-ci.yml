@@ -55,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: ${{ split(inputs.components, ',') }}
+        component: ${{ fromJSON(format('["{0}"]', replace(inputs.components, ',', '","'))) }}
     defaults:
       run:
         shell: bash
