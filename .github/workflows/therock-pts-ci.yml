@@ -1,4 +1,4 @@
-name: Test component
+name: Performance Test Suite
 
 on:
   push:
@@ -13,8 +13,9 @@ on:
         type: string
       test_runs_on:
         type: string
-      components:
-        type: string
+      rocrand:
+        type: boolean
+        default: true
   workflow_dispatch:
     inputs:
       artifact_run_id:
@@ -29,17 +30,36 @@ on:
         type: string
         description: "Enabled to choose the Test Target"
         default: "linux-gfx942-1gpu-ossci-rocm"
-      components:
-        type: string
-        description: 'The list of tests to run with comma separator. (ex: "rocrand,rocblas,...")'
-        default: "rocrand"
+      rocrand:
+        type: boolean
+        description: "Test rocrand"
+        default: true
 
 permissions:
   contents: read
 
 jobs:
+  setup_matrix:
+    name: Setup test matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: Build component matrix from inputs
+        id: set_matrix
+        run: |
+          components=()
+          ${{ inputs.rocrand == true }} && components+=("rocrand")
+          if [ ${#components[@]} -eq 0 ]; then
+            echo "Error: No components selected"
+            exit 1
+          fi
+          JSON_ARRAY=$(printf '%s\n' "${components[@]}" | jq -R . | jq -s .)
+          echo "matrix=$JSON_ARRAY" >> $GITHUB_OUTPUT
+          echo "Selected components: ${components[*]}"
   test_component:
     name: 'Test ${{ matrix.component }}'
+    needs: setup_matrix
     runs-on: ${{ inputs.test_runs_on }}
     timeout-minutes: 210
     container:
@@ -55,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: ${{ fromJSON(format('["{0}"]', replace(inputs.components, ',', '","'))) }}
+        component: ${{ fromJSON(needs.setup_matrix.outputs.matrix) }}
     defaults:
       run:
         shell: bash
