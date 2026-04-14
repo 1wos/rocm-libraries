@@ -26,6 +26,7 @@
 #include <hipcub/util_allocator.hpp>
 
 #include "common_test_header.hpp"
+#include "test_utils_controller.hpp"
 #include "test_utils_assertions.hpp"
 
 hipcub::CachingDeviceAllocator g_allocator;

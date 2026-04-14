@@ -32,14 +32,11 @@
 #include "test_utils_custom_test_types.hpp"
 #include "test_utils_data_generation.hpp"
 #include "test_utils_sort_comparator.hpp"
+#include "test_utils_controller.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <vector>
-
-#if defined(_WIN32) && defined(HIPCUB_ROCPRIM_API)
-    #include <rocprim/device/config_types.hpp>
-#endif
 
 #define HIP_CHECK_MEMORY(condition)                                                         \
     {                                                                                       \
@@ -78,11 +75,14 @@ struct params
 };
 
 template<class Params>
-class HipcubDeviceRadixSort : public ::testing::Test
+class HipcubDeviceRadixSort : public test_controller::ControlledTest
 {
 public:
     using params = Params;
 };
+
+class HipcubDeviceRadixSortLargeInput : public test_controller::ControlledTest
+{};
 
 TYPED_TEST_SUITE_P(HipcubDeviceRadixSort);
 
@@ -238,16 +238,8 @@ void sort_keys()
     constexpr unsigned int end_bit           = TestFixture::params::end_bit;
     constexpr bool         check_large_sizes = TestFixture::params::check_large_sizes;
 
-    hipStream_t stream = 0; // default
+    hipStream_t stream = 0; // default stream
     
-#if defined(_WIN32) && defined(HIPCUB_ROCPRIM_API)
-    rocprim::detail::target_arch arch;
-    if (rocprim::detail::host_target_arch(stream, arch) != HIP_SUCCESS)
-        GTEST_FAIL() << "Unable to retrieve GPU architecture";
-    if (arch == rocprim::detail::target_arch::gfx1151)
-        GTEST_SKIP() << "Temporarily skipping test on gfx1151.";
-#endif
-
     if(TestFixture::params::use_graphs)
     {
         // Default stream does not support hipGraph stream capture, so create one
@@ -260,7 +252,7 @@ void sort_keys()
             = seed_index < random_seeds_count ? rand() : seeds[seed_index - random_seeds_count];
         SCOPED_TRACE(testing::Message() << "with seed= " << seed_value);
 
-        for(size_t size : test_utils::get_sizes(seed_value))
+        for(size_t size : CHECK_SIZE_FILTERS(test_utils::get_sizes(seed_value)))
         {
             if(size > (1 << 20) && !check_large_sizes)
             {
@@ -510,14 +502,6 @@ void sort_pairs()
 
     hipStream_t stream = 0; // default
 
-#if defined(_WIN32) && defined(HIPCUB_ROCPRIM_API)
-    rocprim::detail::target_arch arch;
-    if (rocprim::detail::host_target_arch(stream, arch) != HIP_SUCCESS)
-        GTEST_FAIL() << "Unable to retrieve GPU architecture";
-    if (arch == rocprim::detail::target_arch::gfx1151)
-        GTEST_SKIP() << "Temporarily skipping test on gfx1151.";
-#endif
-
     if(TestFixture::params::use_graphs)
     {
         // Default stream does not support hipGraph stream capture, so create one
@@ -530,7 +514,7 @@ void sort_pairs()
             = seed_index < random_seeds_count ? rand() : seeds[seed_index - random_seeds_count];
         SCOPED_TRACE(testing::Message() << "with seed= " << seed_value);
 
-        for(size_t size : test_utils::get_sizes(seed_value))
+        for(size_t size : CHECK_SIZE_FILTERS(test_utils::get_sizes(seed_value)))
         {
             if(size > (1 << 20) && !check_large_sizes)
             {
@@ -816,14 +800,6 @@ void sort_keys_double_buffer()
 
     hipStream_t stream = 0; // default
 
-#if defined(_WIN32) && defined(HIPCUB_ROCPRIM_API)
-    rocprim::detail::target_arch arch;
-    if (rocprim::detail::host_target_arch(stream, arch) != HIP_SUCCESS)
-        GTEST_FAIL() << "Unable to retrieve GPU architecture";
-    if (arch == rocprim::detail::target_arch::gfx1151)
-        GTEST_SKIP() << "Temporarily skipping test on gfx1151.";
-#endif
-
     if(TestFixture::params::use_graphs)
     {
         // Default stream does not support hipGraph stream capture, so create one
@@ -836,7 +812,7 @@ void sort_keys_double_buffer()
             = seed_index < random_seeds_count ? rand() : seeds[seed_index - random_seeds_count];
         SCOPED_TRACE(testing::Message() << "with seed= " << seed_value);
 
-        for(size_t size : test_utils::get_sizes(seed_value))
+        for(size_t size : CHECK_SIZE_FILTERS(test_utils::get_sizes(seed_value)))
         {
             if(size > (1 << 20) && !check_large_sizes)
             {
@@ -1065,14 +1041,6 @@ void sort_pairs_double_buffer()
 
     hipStream_t stream = 0; // default
 
-#if defined(_WIN32) && defined(HIPCUB_ROCPRIM_API)
-    rocprim::detail::target_arch arch;
-    if (rocprim::detail::host_target_arch(stream, arch) != HIP_SUCCESS)
-        GTEST_FAIL() << "Unable to retrieve GPU architecture";
-    if (arch == rocprim::detail::target_arch::gfx1151)
-        GTEST_SKIP() << "Temporarily skipping test on gfx1151.";
-#endif
-
     if(TestFixture::params::use_graphs)
     {
         // Default stream does not support hipGraph stream capture, so create one
@@ -1085,7 +1053,7 @@ void sort_pairs_double_buffer()
             = seed_index < random_seeds_count ? rand() : seeds[seed_index - random_seeds_count];
         SCOPED_TRACE(testing::Message() << "with seed= " << seed_value);
 
-        for(size_t size : test_utils::get_sizes(seed_value))
+        for(size_t size : CHECK_SIZE_FILTERS(test_utils::get_sizes(seed_value)))
         {
             if(size > (1 << 20) && !check_large_sizes)
             {
@@ -1262,10 +1230,6 @@ void sort_pairs_double_buffer()
 
 inline void sort_keys_over_4g()
 {
-    int device_id = test_common_utils::obtain_device_from_ctest();
-    SCOPED_TRACE(testing::Message() << "with device_id= " << device_id);
-    HIP_CHECK(hipSetDevice(device_id));
-
     using key_type                                 = uint8_t;
     constexpr unsigned int start_bit               = 0;
     constexpr unsigned int end_bit                 = 8ull * sizeof(key_type);
@@ -1273,19 +1237,17 @@ inline void sort_keys_over_4g()
     constexpr size_t       size                    = (1ull << 32) + 32;
     constexpr size_t       number_of_possible_keys = 1ull << (8ull * sizeof(key_type));
     assert(std::is_unsigned<key_type>::value);
-    hipDeviceProp_t dev_prop;
-    HIP_CHECK(hipGetDeviceProperties(&dev_prop, device_id));
 
-#if defined(_WIN32) && defined(HIPCUB_ROCPRIM_API)
-    rocprim::detail::target_arch arch;
-    if (rocprim::detail::host_target_arch(stream, arch) != HIP_SUCCESS)
-        GTEST_FAIL() << "Unable to retrieve GPU architecture";
-    if (arch == rocprim::detail::target_arch::gfx1151)
-        GTEST_SKIP() << "Temporarily skipping test on gfx1151.";
-#endif
+	CHECK_SIZE_ENABLEMENT(size);
+
+	int device_id = test_common_utils::obtain_device_from_ctest();
+    SCOPED_TRACE(testing::Message() << "with device_id= " << device_id);
+    HIP_CHECK(hipSetDevice(device_id));
 
     // Radix sort requires 2 buffers of `size`, so a minimum of 8 GB of vram for this test.
     // This is more than some cards provide.
+	hipDeviceProp_t dev_prop;
+    HIP_CHECK(hipGetDeviceProperties(&dev_prop, device_id));
     if(static_cast<size_t>(dev_prop.totalGlobalMem * 0.9) < size * 2 * sizeof(key_type))
     {
         GTEST_SKIP() << "insufficient global memory";
@@ -1376,31 +1338,19 @@ inline void sort_keys_over_4g()
 
 inline void sort_keys_large_sizes()
 {
-    int device_id = test_common_utils::obtain_device_from_ctest();
-    SCOPED_TRACE(testing::Message() << "with device_id= " << device_id);
-    HIP_CHECK(hipSetDevice(device_id));
-
     using key_type                    = uint8_t;
     constexpr bool         descending = false;
     constexpr unsigned int start_bit  = 0;
     constexpr unsigned int end_bit    = 8;
 
-    hipStream_t stream = 0;
-#if defined(_WIN32) && defined(HIPCUB_ROCPRIM_API)
-    rocprim::detail::target_arch arch;
-    if (rocprim::detail::host_target_arch(stream, arch) != HIP_SUCCESS)
-        GTEST_FAIL() << "Unable to retrieve GPU architecture";
-    if (arch == rocprim::detail::target_arch::gfx1151)
-        GTEST_SKIP() << "Temporarily skipping test on gfx1151.";
-#endif
+    const std::vector<size_t> sizes = CHECK_SIZE_FILTERS(test_utils::get_large_sizes(seeds[0]));
+	
+	int device_id = test_common_utils::obtain_device_from_ctest();
+    SCOPED_TRACE(testing::Message() << "with device_id= " << device_id);
+    HIP_CHECK(hipSetDevice(device_id));
 
-    // Workaround: `hipMalloc` always returns `hipSuccess` even when allocation fails.
-    // We limit the maximum size so this bug doesn't occur.
-#ifdef _WIN32
-    const std::vector<size_t> sizes = test_utils::get_large_sizes<34>(seeds[0]);
-#else
-    const std::vector<size_t> sizes = test_utils::get_large_sizes(seeds[0]);
-#endif
+	hipStream_t stream = 0;
+	
     for(const size_t size : sizes)
     {
         SCOPED_TRACE(testing::Message() << "with size = " << size);
