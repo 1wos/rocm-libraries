@@ -19,7 +19,9 @@ log = logging.getLogger(__name__)
 
 def pytest_addoption(parser):
     """Initialization of cmdline args"""
-    parser.addoption("--rock-dir", action="store", help="Path of TheRock Dir")
+    parser.addoption(
+        "--rock-dir", action="store", help="Path of TheRock Dir", required=True
+    )
     parser.addoption(
         "--push-db", action="store_true", help="Enable to push results to DB"
     )
@@ -55,15 +57,15 @@ def dbSession(pytestconfig, rockDir):
     log.info("Connected to Elasticsearch")
     # collect machine data
     session.baseDoc = baseDoc = {}
-    with open('/proc/cpuinfo') as fd:
-        baseDoc['cpu_info'] = re.search(r'model name\s+: (.*)', fd.read()).group(1)
-    baseDoc['ram'] = f'{psutil.vitual_memory().total / (2 ** 30):.2f} GB'
-    ret, out = utils.runCmdGetOutput(f'{rockDir}/bin/rocminfo')
-    baseDoc['device'] = re.search(r'Name:\s+(gfx[\w-]+)', out).group(1)
+    with open("/proc/cpuinfo") as fd:
+        baseDoc["cpu_info"] = re.search(r"model name\s+: (.*)", fd.read()).group(1)
+    baseDoc["ram"] = f"{psutil.vitual_memory().total / (2 ** 30):.2f} GB"
+    ret, out = utils.runCmdGetOutput(f"{rockDir}/bin/rocminfo")
+    baseDoc["device"] = re.search(r"Name:\s+(gfx[\w-]+)", out).group(1)
     # collect commit details
-    baseDoc['git_hash'] = os.environ.get('COMMIT_ID')
-    baseDoc['branch_name'] = os.environ.get('CURRENT_BRANCH')
-    baseDoc['time_stamp'] = time.time()  # utc time
+    baseDoc["git_hash"] = os.environ.get("COMMIT_ID")
+    baseDoc["branch_name"] = os.environ.get("CURRENT_BRANCH")
+    baseDoc["time_stamp"] = time.time()  # utc time
     yield session
     session and session.transport.close()
 
@@ -75,7 +77,5 @@ def dbDoc(dbSession):
         return
     doc = dict(dbSession.baseDoc)
     yield doc
-    resp = dbSession.index(
-        index=doc.pop('_index'), document=doc)
-    )
+    resp = dbSession.index(index=doc.pop("_index"), document=doc)
     assert resp, "DB Ingestion Failed: {resp}"

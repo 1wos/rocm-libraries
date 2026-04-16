@@ -25,11 +25,13 @@ class TestPTS:
         assert ret == 0
         if not dbDoc:
             return
-        dbDoc.update({
-            "_index": "pts_rocrand_benchmark_data-v1.0.0",
-            "executable": benchmark,
-            "scores": [],
-        })
+        dbDoc.update(
+            {
+                "_index": "pts_rocrand_benchmark_data-v1.0.0",
+                "executable": benchmark,
+                "scores": [],
+            }
+        )
         expr = r"(?P<name>.*?/\w+)"
         expr += r" +(?P<real_time>\d+) (?P<time_unit>\w+)"
         expr += r" +(?P<cpu_time>\d+) \w+"
