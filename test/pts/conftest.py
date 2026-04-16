@@ -5,10 +5,12 @@ import elasticsearch
 
 # disable SSL warnings
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.SecurityWarning)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 import utils
+
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
@@ -16,7 +18,9 @@ log = logging.getLogger(__name__)
 def pytest_addoption(parser):
     """Initialization of cmdline args"""
     parser.addoption("--rock-dir", action="store", help="Path of TheRock Dir")
-    parser.addoption("--push-db", action="store_true", help="Enable to push results to DB")
+    parser.addoption(
+        "--push-db", action="store_true", help="Enable to push results to DB"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -58,5 +62,7 @@ def dbIngress(dbSession):
         return
     ingress = {}
     yield ingress
-    resp = elasticsearch.helpers.bulk(dbSession, (ingress, ), chunk_size=100, request_timeout=60*30)
-    assert resp, 'DB Ingestion Failed: {resp}'
+    resp = elasticsearch.helpers.bulk(
+        dbSession, (ingress,), chunk_size=100, request_timeout=60 * 30
+    )
+    assert resp, "DB Ingestion Failed: {resp}"
