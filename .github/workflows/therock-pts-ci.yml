@@ -104,4 +104,5 @@ jobs:
 
       - name: Test
         run: |
-          python3 -m pytest -s -v --tb=short --rock-dir=./therock-build rocm-libraries/test/pts/tests_pts.py -k ${{ matrix.component }}
+          pip3 install --requirement rocm-libraries/test/pts/requirements.txt
+          python3 -m pytest -s -v --tb=short --rock-dir=./therock-build rocm-libraries/test/pts/tests_pts.py --push-db -k ${{ matrix.component }}

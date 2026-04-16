@@ -64,7 +64,6 @@ def runCmdGetSdtoutSdterr(
     # make process stdout / stderr as non-blocking to make unblocked reads
     os.set_blocking(process.stdout.fileno(), False)
     os.set_blocking(process.stderr.fileno(), False)
-
     # live collection of process stdout / stderr streams
     def _readStream(fd):
         chunk = fd.read().strip()
@@ -72,7 +71,6 @@ def runCmdGetSdtoutSdterr(
             sys.stdout.write(chunk.decode())
             sys.stdout.flush()
         return chunk
-
     ret, stdout, stderr = None, b"", b""
     chunk = None
     while chunk != b"":  # loop reading till end of stream
@@ -94,7 +92,10 @@ def runCmdGetSdtoutSdterr(
     ret = process.wait()
     status = "success" if ret == 0 else "failed"
     log.info(f"[{shlex.join(cmd)}] {status} return code: {ret}")
-    return ret, stdout.decode(), stderr.decode()
+    # cleaning ansi escape sequences
+    def _cleanAnsiEscapes(stream):
+        return re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', stream.decode())
+    return ret, _cleanAnsiEscapes(stdout), _cleanAnsiEscapes(stderr)
 
 
 def runCmdGetOutput(*args, **kwargs):
@@ -111,3 +112,15 @@ def runCmd(*args, **kwargs):
     """
     ret, stdout, stderr = runCmdGetSdtoutSdterr(*args, **kwargs)
     return ret
+
+
+def normBps(bps, multiplier):
+    """Normalizes bytes per second in its integer form"""
+    mulMap = {'K': 10, 'M': 20, 'G': 30, 'T': 40}
+    return int(float(bps) * (2 ** mulMap[multiplier]))
+
+
+def normIps(bps, multiplier):
+    """Normalizes items per second in its integer form"""
+    mulMap = {'K': 3, 'M': 4, 'G': 5, 'T': 6}
+    return int(float(bps) * (10 ** mulMap[multiplier]))
