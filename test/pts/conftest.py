@@ -1,6 +1,8 @@
 import os
-import logging
+import re
+import psutil
 import pytest
+import logging
 import elasticsearch
 
 # disable SSL warnings
@@ -30,7 +32,7 @@ def rockDir(pytestconfig):
 
 
 @pytest.fixture(scope="session")
-def dbSession(pytestconfig):
+def dbSession(pytestconfig, rockDir):
     if not pytestconfig.getoption("--push-db"):
         yield None
         return
@@ -51,18 +53,29 @@ def dbSession(pytestconfig):
     # simple health check
     assert session.ping(), "Elasticsearch ping failed!"
     log.info("Connected to Elasticsearch")
+    # collect machine data
+    session.baseDoc = baseDoc = {}
+    with open('/proc/cpuinfo') as fd:
+        baseDoc['cpu_info'] = re.search(r'model name\s+: (.*)', fd.read()).group(1)
+    baseDoc['ram'] = f'{psutil.vitual_memory().total / (2 ** 30):.2f} GB'
+    ret, out = utils.runCmdGetOutput(f'{rockDir}/bin/rocminfo')
+    baseDoc['device'] = re.search(r'Name:\s+(gfx[\w-]+)', out).group(1)
+    # collect commit details
+    baseDoc['git_hash'] = os.environ.get('COMMIT_ID')
+    baseDoc['branch_name'] = os.environ.get('CURRENT_BRANCH')
+    baseDoc['time_stamp'] = time.time()  # utc time
     yield session
     session and session.transport.close()
 
 
 @pytest.fixture(scope="function")
-def dbIngress(dbSession):
+def dbDoc(dbSession):
     if not dbSession:
         yield None
         return
-    ingress = {}
-    yield ingress
-    resp = elasticsearch.helpers.bulk(
-        dbSession, (ingress,), chunk_size=100, request_timeout=60 * 30
+    doc = dict(dbSession.baseDoc)
+    yield doc
+    resp = dbSession.index(
+        index=doc.pop('_index'), document=doc)
     )
     assert resp, "DB Ingestion Failed: {resp}"

@@ -14,7 +14,7 @@ class TestPTS:
             "benchmark_rocrand_device_api",
         ),
     )
-    def test_rocrand(self, benchmark, rockDir, dbIngress):
+    def test_rocrand(self, benchmark, rockDir, dbDoc):
         """A Test case to run rocrand benchmark"""
         ret, out = utils.runCmdGetOutput(
             f"./{benchmark}",
@@ -23,21 +23,19 @@ class TestPTS:
             cwd=f"{rockDir}/bin",
         )
         assert ret == 0
-        if dbIngress == None:
+        if not dbDoc:
             return
+        dbDoc.update({
+            "_index": "pts_rocrand_benchmark_data-v1.0.0",
+            "executable": benchmark,
+            "scores": [],
+        })
         expr = r"(?P<name>.*?/\w+)"
         expr += r" +(?P<real_time>\d+) (?P<time_unit>\w+)"
         expr += r" +(?P<cpu_time>\d+) \w+"
         expr += r" +(?P<iterations>\d+)"
         expr += r" +(?P<bps>[\d\.]+)(?P<bpsMul>[KMGT])i/s"
         expr += r" +(?P<ips>[\d\.]+)(?P<ipsMul>[KMGT])/s"
-        dbIngress.update(
-            {
-                "_index": "pts_rocrand_benchmark_data-v1.0.0",
-                "executable": benchmark,
-                "scores": [],
-            }
-        )
         for mtch in re.finditer(expr, out):
             scoreCard = mtch.groupdict()
             # spliting benchmark name
@@ -53,4 +51,4 @@ class TestPTS:
             scoreCard["items_per_second"] = utils.normIps(
                 scoreCard.pop("ips"), scoreCard.pop("ipsMul")
             )
-            dbIngress["scores"].append(scoreCard)
+            dbDoc["scores"].append(scoreCard)

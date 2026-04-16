@@ -104,6 +104,8 @@ jobs:
 
       - name: Test
         env:
+          COMMIT_ID: ${{ github.sha }}
+          CURRENT_BRANCH: ${{ github.ref_name }}
           PTS_DB_API_ID: ${{ secrets.PTS_DB_API_ID }}
           PTS_DB_API_KEY: ${{ secrets.PTS_DB_API_KEY }}
         run: |
