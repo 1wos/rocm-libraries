@@ -256,6 +256,7 @@ set( MIOpen_Source
     solver/conv_ck_igemm_fwd_bias_activ_fused.cpp
     solver/conv_ck_igemm_grp_fwd_bias_activ_fused.cpp
     solver/conv_ck_igemm_fwd_bias_res_add_activ_fused.cpp
+    solver/conv_hip_dir2Dfwd_fused.cpp
     solver/conv_ocl_dir2Dfwd_fused.cpp
     solver/conv_winoRxS_fused.cpp
     solver/glu/backward_glu.cpp
@@ -550,6 +551,7 @@ if( MIOPEN_BACKEND MATCHES "OpenCL" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN
         kernels/MIOpenBatchNormBwdPerAct.cpp
         kernels/MIOpenConvDirUni.cl
         kernels/MIOpenConvDirBatchNormActiv.cl
+        kernels/MIOpenConvDirBatchNormActivHip.cpp
         kernels/MIOpenConvDirGenFwd.cl
         kernels/MIOpenGLU.cpp
         kernels/MIOpenGroupNorm.cpp
