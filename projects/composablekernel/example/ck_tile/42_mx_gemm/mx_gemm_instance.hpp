@@ -89,7 +89,6 @@ float mx_gemm_calc(const MXGemmHostArgs<ScaleM, ScaleN>& args, const ck_tile::st
                                          1,      // kNumWaveGroups_ (Default)
                                          false,  // FixedVectorSize_ (Default)
                                          1,      // VectorSizeC_ (Default)
-                                         false,  // TiledMMAPermuteN_ (Default)
                                          1,      // BlockedXDLN_PerWarp_ (Default)
                                          false,  // DoubleSmemBuffer_ (Default)
                                          true>>; // TilesPacked_ (because of packed scales)
