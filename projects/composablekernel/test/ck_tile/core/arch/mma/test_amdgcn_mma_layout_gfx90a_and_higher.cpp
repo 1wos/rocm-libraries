@@ -2,5 +2,5 @@
 // SPDX-License-Identifier: MIT
 
 #include "test_amdgcn_mma_layout.inc"
-TYPED_TEST_SUITE(TestMmaLayout, Gfx90aIntrinsics);
-TYPED_TEST(TestMmaLayout, Gfx90aIntrinsics) { run_mma_layout_test<TypeParam>(); }
+TYPED_TEST_SUITE(TestMmaLayout, Gfx90aAndHigherIntrinsics);
+TYPED_TEST(TestMmaLayout, Gfx90aAndHigherIntrinsics) { run_mma_layout_test<TypeParam>(); }

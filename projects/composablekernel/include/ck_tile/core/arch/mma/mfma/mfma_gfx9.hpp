@@ -1159,7 +1159,7 @@ struct amdgcn_mma<fp64_t, fp64_t, fp64_t, 16u, 16u, 4u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        // Note: BLGP flag has a another meaning for f64 builtins: BLGP bits [0:2] cause negation of
+        // Note: BLGP flag has another meaning for f64 builtins: BLGP bits [0:2] cause negation of
         // the A, B, and C input matrices respectively (ref. ISA docs for MI300 Instinct)
         return {__builtin_amdgcn_mfma_f64_16x16x4f64(bit_cast<fp64_t>(aVec),
                                                      bit_cast<fp64_t>(bVec),
