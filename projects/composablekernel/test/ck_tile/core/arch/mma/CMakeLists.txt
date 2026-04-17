@@ -58,6 +58,7 @@ endif()
 if(GPU_TARGETS MATCHES "gfx950")
     add_gtest_executable(test_amdgcn_mma_layout_gfx950 test_amdgcn_mma_layout_gfx950.cpp)
     target_compile_options(test_amdgcn_mma_layout_gfx950 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+    set_mma_test_arch_define(test_amdgcn_mma_layout_gfx950)
 endif()
 
 if(GPU_TARGETS MATCHES "gfx11")
