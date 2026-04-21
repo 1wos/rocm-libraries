@@ -37,30 +37,6 @@ namespace ck_tile::core::arch::mma {
 // one packed register for each input to be able to process smaller K values by padding.
 
 /**
- * @class DefaultWmmaFlags
- * @brief Generates default WMMA control flags based on data types.
- * @tparam ADataType Data type of matrix A
- * @tparam BDataType Data type of matrix B
- * @tparam CDataType Data type of the accumulator
- */
-template <typename ADataType, typename BDataType, typename CDataType>
-struct DefaultWmmaCtrlFlags
-{
-    // Generate default flags for signage
-    // Only used currently for integer inputs / accum in gfx11 / gfx12
-    constexpr static WmmaCtrlFlags InputSignA =
-        std::is_signed_v<ADataType> ? WmmaCtrlFlags::SIGNED : WmmaCtrlFlags::UNSIGNED;
-    constexpr static WmmaCtrlFlags InputSignB =
-        std::is_signed_v<BDataType> ? WmmaCtrlFlags::SIGNED : WmmaCtrlFlags::UNSIGNED;
-    constexpr static WmmaCtrlFlags AccumSign =
-        std::is_signed_v<CDataType> ? WmmaCtrlFlags::SIGNED : WmmaCtrlFlags::UNSIGNED;
-
-    // Generate default flags for accumulator destination bits.
-    // Only used if accumulation size is 16-bit in gfx11
-    constexpr static WmmaCtrlFlags AccumBits = WmmaCtrlFlags::LOW;
-};
-
-/**
  * @struct amdgcn_mma
  * @brief Specialization of amdgcn_mma for fp16_t, fp16_t, fp32_t MMA operation on GFX11
  * architecture.

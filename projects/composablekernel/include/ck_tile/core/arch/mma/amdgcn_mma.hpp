@@ -301,10 +301,3 @@ struct amdgcn_mma : amdgcn_mma_base<fp32_t, fp32_t, fp32_t, 1u, 1u, 1u, 1u, 1, 1
 
 } // namespace ck_tile::core::arch::mma
 #pragma clang diagnostic pop
-
-// Include the implementations
-#include "wmma/wmma.hpp" // should be included before the below headers
-
-#include "mfma/mfma.hpp"
-#include "scale/scale.hpp"
-#include "sparse/sparse.hpp"
