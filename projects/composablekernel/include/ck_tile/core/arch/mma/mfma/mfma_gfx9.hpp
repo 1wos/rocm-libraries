@@ -5,11 +5,20 @@
 
 #include "mfma_traits.hpp"
 
-#include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
-#include "ck_tile/core/arch/mma/mma_traits.hpp"
+#include "ck_tile/core/arch/mma/mma_op_family.hpp"
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/float8.hpp"
+#include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/core/numeric/int8.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/numeric/tfloat32.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
+
+#include <cstdint>
 
 namespace ck_tile::core::arch::mma {
 
@@ -1223,6 +1232,64 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 32u, 32u, 16u, CtrlFlags, CompilerTar
                                                       static_cast<int>(CtrlFlags::Cbsz),
                                                       static_cast<int>(CtrlFlags::Abid),
                                                       static_cast<int>(CtrlFlags::Blgp))};
+    }
+};
+
+/**
+ * @struct amdgcn_mma
+ * @brief Specialization of amdgcn_mma for tf32_t, tf32_t, float MMA operation on GFX942
+ * architecture.
+ * @tparam CtrlFlags Control flags for the MFMA operation
+ * @tparam CompilerTarget Current compiler target
+ */
+// TODO: c++20 template <CtrlFlagsCdna3I CtrlFlags, amdgcn_target CompilerTarget>
+// TODO: c++20 requires
+template <typename CtrlFlags, typename CompilerTarget>
+// clang-format off
+//               |A B C DataTypes       |MNK          |
+struct amdgcn_mma<tf32_t, tf32_t, fp32_t, 16u, 16u, 8u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_id_t<CompilerTarget, amdgcn_target_id::GFX942>>
+//                                                    |WS  |AParams |BPar |CPar |
+: amdgcn_mma_base<tf32_t, tf32_t, fp32_t, 16u, 16u, 8u, 64u, 2, 1, 1, 1, 1, 4, 1, MfmaOp, MmaOpFamily::DENSE>
+// clang-format on
+{
+    CK_TILE_DEVICE static CVecType
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
+    {
+        return {__builtin_amdgcn_mfma_f32_16x16x8_xf32(aVec,
+                                                       bVec,
+                                                       cVec,
+                                                       static_cast<int>(CtrlFlags::Cbsz),
+                                                       static_cast<int>(CtrlFlags::Abid),
+                                                       static_cast<int>(CtrlFlags::Blgp))};
+    }
+};
+
+/**
+ * @struct amdgcn_mma
+ * @brief Specialization of amdgcn_mma for tf32_t, tf32_t, float MMA operation on GFX942
+ * architecture.
+ * @tparam CtrlFlags Control flags for the MFMA operation
+ * @tparam CompilerTarget Current compiler target
+ */
+// TODO: c++20 template <CtrlFlagsCdna3I CtrlFlags, amdgcn_target CompilerTarget>
+// TODO: c++20 requires
+template <typename CtrlFlags, typename CompilerTarget>
+// clang-format off
+//               |A B C DataTypes       |MNK          |
+struct amdgcn_mma<tf32_t, tf32_t, fp32_t, 32u, 32u, 4u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_id_t<CompilerTarget, amdgcn_target_id::GFX942>>
+//                                                    |WS  |AParams |BPar |CPar  |
+: amdgcn_mma_base<tf32_t, tf32_t, fp32_t, 32u, 32u, 4u, 64u, 2, 1, 1, 1, 1, 16, 4, MfmaOp, MmaOpFamily::DENSE>
+// clang-format on
+{
+    CK_TILE_DEVICE static CVecType
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
+    {
+        return {__builtin_amdgcn_mfma_f32_32x32x4_xf32(aVec,
+                                                       bVec,
+                                                       cVec,
+                                                       static_cast<int>(CtrlFlags::Cbsz),
+                                                       static_cast<int>(CtrlFlags::Abid),
+                                                       static_cast<int>(CtrlFlags::Blgp))};
     }
 };
 
