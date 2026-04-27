@@ -13,10 +13,11 @@ namespace ck_tile::core::arch::mma {
  */
 enum struct SparseCompressionIndex : int
 {
-    FIRST  = 0, // Uses bits  [7:0] or [15..0], for 16 and 8 bit data respectively
-    SECOND = 1, // Uses bits [15:8] or [31:16], for 16 and 8 bit data respectively
-    THIRD  = 2, // Uses bits [23:16]
-    FOURTH = 3, // Uses bits [31:24]
+    NONE   = -1, // Uses the full index register (cbsz=0, abid=0)
+    FIRST  = 0,  // Uses bits  [7:0] or [15..0], for 16 and 8 bit data respectively
+    SECOND = 1,  // Uses bits [15:8] or [31:16], for 16 and 8 bit data respectively
+    THIRD  = 2,  // Uses bits [23:16]
+    FOURTH = 3,  // Uses bits [31:24]
 };
 
 namespace sparse::detail {
@@ -44,7 +45,11 @@ template <SparseCompressionIndex Idx>
 static constexpr BuiltinParams getBuiltinParams()
 {
     // TODO c++20: designated initializers
-    if constexpr(Idx == SparseCompressionIndex::FIRST)
+    if constexpr(Idx == SparseCompressionIndex::NONE)
+    {
+        return BuiltinParams{0, 0};
+    }
+    else if constexpr(Idx == SparseCompressionIndex::FIRST)
     {
         return BuiltinParams{1, 0};
     }
@@ -64,6 +69,17 @@ static constexpr BuiltinParams getBuiltinParams()
 struct DefaultSparseMfmaCtrlFlags
 {
     static constexpr SparseCompressionIndex CompressionIndex = SparseCompressionIndex::FIRST;
+};
+
+/**
+ * @struct DefaultSparseMfmaCtrlFlagsGfx950
+ * @brief Sparse MFMA flags for gfx950 instructions that require more than 8 bits
+ * of compression index per lane (e.g., smfmac_f32_16x16x64_f16 needs 16 bits).
+ * Uses the full index register (cbsz=0, abid=0).
+ */
+struct DefaultSparseMfmaCtrlFlagsGfx950
+{
+    static constexpr SparseCompressionIndex CompressionIndex = SparseCompressionIndex::NONE;
 };
 
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
