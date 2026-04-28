@@ -72,7 +72,7 @@ TEST_CASE("Logger: text log writes debug messages when enabled", "[logger]") {
       auto problem  = make_problem(2048, 2048, 1024);
       auto config   = make_config(128, 128, 64, 16, 16, 16, false, 1);
 
-      origami::compute_total_latency(problem, hardware, config);
+      origami::compute_total_latency(problem, hardware, config, hardware.N_CU);
 
       // Re-create logger singleton by flushing
       origami::Logger::instance().flush();
@@ -103,7 +103,7 @@ TEST_CASE("Logger: text log is not written when debug is disabled", "[logger]") 
   auto problem  = make_problem(2048, 2048, 1024);
   auto config   = make_config(128, 128, 64, 16, 16, 16, false, 1);
 
-  origami::compute_total_latency(problem, hardware, config);
+  origami::compute_total_latency(problem, hardware, config, hardware.N_CU);
   origami::Logger::instance().flush();
 
   std::string contents = read_file(log_path);
@@ -178,11 +178,11 @@ TEST_CASE("CsvLogger: CSV output from GEMM evaluation contains expected columns"
   auto problem  = make_problem(4096, 4096, 2048);
   auto config   = make_config(128, 128, 64, 16, 16, 16, false, 1);
 
-  origami::compute_total_latency(problem, hardware, config);
+  origami::compute_total_latency(problem, hardware, config, hardware.N_CU);
 
   // Run a second evaluation with different problem size to get multiple rows
   auto problem2 = make_problem(1024, 1024, 512);
-  origami::compute_total_latency(problem2, hardware, config);
+  origami::compute_total_latency(problem2, hardware, config, hardware.N_CU);
 
   // CsvLogger writes on destruction; we cannot trigger that in-process.
   // Instead, verify the internal state produced correct messages by
@@ -219,8 +219,8 @@ TEST_CASE("CsvLogger: debug logging produces consistent latency values", "[logge
       auto problem  = make_problem(2048, 2048, 1024);
       auto config   = make_config(128, 128, 64, 16, 16, 16, false, 1);
 
-      double latency1 = origami::compute_total_latency(problem, hardware, config);
-      double latency2 = origami::compute_total_latency(problem, hardware, config);
+      double latency1 = origami::compute_total_latency(problem, hardware, config, hardware.N_CU);
+      double latency2 = origami::compute_total_latency(problem, hardware, config, hardware.N_CU);
 
       // Debug logging should not affect computed latency values
       REQUIRE(latency1 == latency2);
@@ -242,12 +242,12 @@ TEST_CASE("CsvLogger: latency matches between debug enabled and disabled", "[log
       // Compute without debug
       portable_unsetenv("ANALYTICAL_GEMM_DEBUG");
       origami::runtime_options::get().update_from_env();
-      double latency_no_debug = origami::compute_total_latency(problem, hardware, config);
+      double latency_no_debug = origami::compute_total_latency(problem, hardware, config, hardware.N_CU);
 
       // Compute with debug
       portable_setenv("ANALYTICAL_GEMM_DEBUG", "1", 1);
       origami::runtime_options::get().update_from_env();
-      double latency_with_debug = origami::compute_total_latency(problem, hardware, config);
+      double latency_with_debug = origami::compute_total_latency(problem, hardware, config, hardware.N_CU);
 
       REQUIRE(latency_no_debug == latency_with_debug);
     }
