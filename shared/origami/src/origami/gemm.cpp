@@ -97,8 +97,10 @@ context_t::context_t(const problem_t& problem, const hardware_t& hardware, const
     const auto b_bits = datatype_to_bits(problem.b_dtype);
 
     OLOG_DEBUG("======== Origami Debug Info ========");
-    OLOG_DEBUG("ProblemSize (MxNxBxK): " << int(M) << "x" << int(N) << "x" << int(batch) << "x"
-                                         << int(K));
+    OLOG_DEBUG("M: " << int(M));
+    OLOG_DEBUG("N: " << int(N));
+    OLOG_DEBUG("Batch: " << int(batch));
+    OLOG_DEBUG("K: " << int(K));
     OLOG_DEBUG("MacroTile: " << int(MT_M) << "x" << int(MT_N) << "x" << int(MT_K));
     OLOG_DEBUG("MatrixInstruction: " << int(MI_M) << "x" << int(MI_N) << "x" << int(MI_K));
     OLOG_DEBUG("ElementSizeA (bits): " << int(a_bits));
