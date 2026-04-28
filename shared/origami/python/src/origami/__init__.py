@@ -147,3 +147,13 @@ except ImportError:
     # work without the dedicated Python selector
     pass
 
+# Re-export the C++ ml_recommender submodule so callers can write
+# `origami.ml_recommender.*` instead of `origami.origami.ml_recommender.*`.
+try:
+    from .origami import ml_recommender  # noqa: F401
+    __all__.append("ml_recommender")
+except ImportError:
+    pass
+except ImportError:
+    pass
+

@@ -117,6 +117,10 @@ namespace TensileLite
                                 .workspace_size            = std::numeric_limits<size_t>::max(),
                                 .workspace_size_per_elem_c = std::numeric_limits<size_t>::max(),
                                 .index                     = local_index,
+                                .tensile_sol_idx           = static_cast<std::size_t>(index),
+                                .grvw_a                    = solution->sizeMapping.grvwA,
+                                .grvw_b                    = solution->sizeMapping.grvwB,
+                                .gwvw_d                    = solution->sizeMapping.gwvwD,
                             };
 
                             lib.origami_config_list.emplace_back(origami_config);

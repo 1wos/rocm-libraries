@@ -31,6 +31,7 @@
 #include <vector>
 
 #include <Tensile/UtilsOrigami.hpp>
+#include <origami/profiler.hpp>
 
 namespace TensileLite
 {
@@ -181,8 +182,34 @@ namespace TensileLite
                 .b_mx_block_size = 0, // MX Data types come from rocroller
             };
 
+            // Opt-in selection-time profiling. Compiles to ((void)0) unless
+            // the build defines ORIGAMI_ENABLE_PROFILING AND a callback was
+            // registered via origami::profiler::set_callback (default = no
+            // callback = no work even when defined). Captures the
+            // user-visible "selection event" wall time = config-list copy
+            // + rank_configs + predicate filter.
+            ORIGAMI_PROFILE_SCOPE("PredictionLibrary.findTopSolutions",
+                                  (::origami::profiler::meta_t{m, n, k, batch,
+                                                               origami_config_list.size(),
+                                                               -1}));
+
+            // When the ML recommender is enabled, copy the config list and flip
+            // each entry's prediction_mode so origami::rank_configs dispatches
+            // through the ML path. Otherwise, score the original list as-is
+            // (each config's prediction_mode default = analytical Origami).
+            std::vector<origami::config_t>        ml_config_list;
+            std::vector<origami::config_t> const* configs_for_ranking
+                = &origami_config_list;
+            if(Debug::Instance().useMLRecommender())
+            {
+                ml_config_list = origami_config_list;
+                for(auto& cfg : ml_config_list)
+                    cfg.prediction_mode = origami::prediction_modes_t::ml_recommender;
+                configs_for_ranking = &ml_config_list;
+            }
+
             auto prediction_result = origami::rank_configs(
-                origami_problem, *(pAMDGPU->analyticalHardware), origami_config_list);
+                origami_problem, *(pAMDGPU->analyticalHardware), *configs_for_ranking);
 
             for(const auto& r : prediction_result)
             {

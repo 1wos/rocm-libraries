@@ -189,6 +189,7 @@ enum class reduction_t : std::uint32_t {
 enum class prediction_modes_t : std::uint32_t {
   estimation = 0,     ///< Fast analytical estimation-based prediction (typically faster)
   simulation = 1,     ///< Slow simulation-like prediction (typically more accurate)
+  ml_recommender = 2, ///< ML-based tile prediction (per-cluster two-tower)
   count,              ///< Count of prediction modes
   none = 0xFFFFFFFFu  ///< Explicitly invalid
 };
@@ -501,7 +502,17 @@ struct config_t {
   grid_selection_t grid_selection = grid_selection_t::k_split_aware;
 
   /// Index of config, not used by Origami but can be used by the user
+  /// (NOTE: hipBLASLt's `findTopSolutions` uses `solution_list[r.config.index]`
+  /// to map back to the actual TensileLite solution -- so this MUST be the
+  /// per-call local index 0..N-1 of the candidate vector.)
   std::size_t index = 0;
+
+  /// Global Tensile solution index (= `mappingIndices[local_index]`),
+  /// used by `origami::ml_recommender::rank_configs` to look up the candidate
+  /// in the cluster's pre-trained tile_order set. Stored separately from
+  /// `index` because hipBLASLt's `findTopSolutions` requires `index` to
+  /// remain a per-call local index for the post-rank lookup to work.
+  std::size_t tensile_sol_idx = 0;
 
   /// Global read vector width for matrix A (elements per load)
   std::size_t grvw_a = 1;

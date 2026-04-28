@@ -60,7 +60,10 @@ target_sources(
               $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/origami/heuristics.hpp>
               $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/origami/logger.hpp>
               $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/origami/math.hpp>
+              $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/origami/ml_recommender.hpp>
+              $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/origami/ml_recommender_weights.hpp>
               $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/origami/origami.hpp>
+              $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/origami/profiler.hpp>
               $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/origami/streamk.hpp>
               $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/origami/types.hpp>
               $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/origami/simulator/tensilelite/formocast_simulator.hpp>
@@ -69,13 +72,40 @@ target_sources(
 
 target_link_libraries(origami PUBLIC roc::origami-headers)
 
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/origami/ml_recommender.cpp"
+    PROPERTIES COMPILE_OPTIONS "-fopenmp-simd;-mavx512f;-mavx512bw;-mfma"
+)
+# ML hot path: aggressive optimization flags for analytical
+# inference (vectorized scoring across candidate kernels per cluster).
+#
+# PGO: enable via -DORIGAMI_PGO_GENERATE=1 (instrumented build for profiling)
+# or -DORIGAMI_PGO_USE=1 (use collected profiles in /tmp/origami_pgo).
+set(ML_RECOMMENDER_OPTS "-O3;-march=native;-mavx512f;-mavx512bw;-mfma;-ffast-math;-funroll-loops;-fopenmp-simd")
+if(DEFINED ORIGAMI_PGO_GENERATE)
+    list(APPEND ML_RECOMMENDER_OPTS "-fprofile-generate=/tmp/origami_pgo" "-fprofile-correction")
+elseif(DEFINED ORIGAMI_PGO_USE)
+    list(APPEND ML_RECOMMENDER_OPTS "-fprofile-use=/tmp/origami_pgo" "-fprofile-correction")
+endif()
+set_source_files_properties(
+    PROPERTIES COMPILE_OPTIONS "${ML_RECOMMENDER_OPTS}"
+)
+# PGO link flags (must propagate to the link step too)
+if(DEFINED ORIGAMI_PGO_GENERATE)
+    target_link_options(origami PUBLIC "-fprofile-generate=/tmp/origami_pgo")
+elseif(DEFINED ORIGAMI_PGO_USE)
+    target_link_options(origami PUBLIC "-fprofile-use=/tmp/origami_pgo" "-fprofile-correction")
+endif()
+
 target_sources(
     origami
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/origami/gemm.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/origami/hardware.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/origami/heuristics.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/origami/logger.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/origami/ml_recommender.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/origami/origami.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/origami/profiler.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/origami/streamk.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/origami/types.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/simulator/tensilelite/formocast_simulator.cpp"

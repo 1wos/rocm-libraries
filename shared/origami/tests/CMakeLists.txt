@@ -18,6 +18,7 @@ add_executable(origami-tests)
 
 target_sources(
     origami-tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/test_gemm.cpp"
+                          "${CMAKE_CURRENT_SOURCE_DIR}/test_ml_recommender.cpp"
                           "${CMAKE_CURRENT_SOURCE_DIR}/test_origami.cpp"
                           "${CMAKE_CURRENT_SOURCE_DIR}/test_formocast.cpp"
 )
@@ -25,6 +26,12 @@ target_sources(
 target_include_directories(origami-tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 target_link_libraries(origami-tests PRIVATE roc::origami Catch2::Catch2WithMain)
+
+add_executable(bench_ml_recommender_seltime
+    "${CMAKE_CURRENT_SOURCE_DIR}/bench_ml_recommender_seltime.cpp"
+)
+target_link_libraries(bench_ml_recommender_seltime PRIVATE roc::origami)
+target_compile_options(bench_ml_recommender_seltime PRIVATE -O3 -march=native)
 
 include(CTest)
 include(Catch)
