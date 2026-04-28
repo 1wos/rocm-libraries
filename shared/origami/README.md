@@ -16,6 +16,10 @@
   - [C++](#build-and-install-origami-c)
   - [CMake Options](#cmake-options)
   - [Origami Tests](#origami-tests)
+- [Debug Logging](#debug-logging)
+  - [Text Log](#text-log)
+  - [CSV Log](#csv-log)
+  - [Environment Variables](#environment-variables)
 - [Contribute](#contribute)
 - [How to Cite](#how-to-cite)
 
@@ -308,6 +312,51 @@ Run selector tests (requires torch):
 ```bash
 python -m pytest tests/test_selector.py -v
 ```
+
+## Debug Logging
+
+Origami includes built-in debug logging that exposes internal latency model values (cache hit rates, memory/compute latencies, tile parameters, etc.). Debug output requires the `ANALYTICAL_GEMM_DEBUG=1` environment variable to activate the debug code paths.
+
+### Text Log
+
+Write human-readable debug output to a file by setting `ORIGAMI_LOG_FILE`:
+
+```bash
+export ANALYTICAL_GEMM_DEBUG=1
+export ORIGAMI_LOG_FILE=/tmp/origami.log
+```
+
+Each GEMM evaluation produces a block of key-value lines in the log file, e.g.:
+
+```
+[DEBUG] gemm.cpp:99 - ======== Origami Debug Info ========
+[DEBUG] gemm.cpp:100 - M: 2048
+[DEBUG] gemm.cpp:101 - N: 2048
+...
+[DEBUG] gemm.cpp:116 - total_latency: 45678.9
+[DEBUG] gemm.cpp:117 - =================================
+```
+
+### CSV Log
+
+Write structured CSV output (one row per GEMM evaluation) by setting `ORIGAMI_CSV_FILE`:
+
+```bash
+export ANALYTICAL_GEMM_DEBUG=1
+export ORIGAMI_CSV_FILE=/tmp/origami_debug.csv
+```
+
+The CSV file is written at process exit and contains columns for every value logged with `OLOG_DEBUG`, such as `M`, `N`, `K`, `L_mem`, `L_compute`, `H_mem_l2_A`, `total_latency`, etc. This is useful for bulk analysis of the latency model across many GEMM problems.
+
+Both logging modes can be enabled simultaneously or independently — `ORIGAMI_CSV_FILE` does not require `ORIGAMI_LOG_FILE` and vice versa.
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ANALYTICAL_GEMM_DEBUG` | Set to `1` to enable debug code paths in the latency model |
+| `ORIGAMI_LOG_FILE` | Path for human-readable text log output |
+| `ORIGAMI_CSV_FILE` | Path for structured CSV log output |
 
 ## Contribute
 
