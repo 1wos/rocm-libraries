@@ -62,19 +62,19 @@ TEST_CASE("Logger: text log writes debug messages when enabled", "[logger]") {
 
   portable_setenv("ORIGAMI_LOG_FILE", log_path.c_str(), 1);
   portable_setenv("ANALYTICAL_GEMM_DEBUG", "1", 1);
-
-  // Force re-read of env for runtime_options
+  origami::Logger::instance().update_from_env();
   origami::runtime_options::get().update_from_env();
 
   for (int gpu_arch : test_architectures) {
     DYNAMIC_SECTION("gfx" << gpu_arch) {
+      std::remove(log_path.c_str());
+      origami::Logger::instance().update_from_env();
+
       auto hardware = make_hardware(gpu_arch);
       auto problem  = make_problem(2048, 2048, 1024);
       auto config   = make_config(128, 128, 64, 16, 16, 16, false, 1);
 
       origami::compute_total_latency(problem, hardware, config, hardware.N_CU);
-
-      // Re-create logger singleton by flushing
       origami::Logger::instance().flush();
 
       std::string contents = read_file(log_path);
@@ -83,11 +83,12 @@ TEST_CASE("Logger: text log writes debug messages when enabled", "[logger]") {
       REQUIRE(contents.find("Origami Debug Info") != std::string::npos);
       REQUIRE(contents.find("total_latency") != std::string::npos);
     }
-    std::remove(log_path.c_str());
   }
+  std::remove(log_path.c_str());
 
   portable_unsetenv("ORIGAMI_LOG_FILE");
   portable_unsetenv("ANALYTICAL_GEMM_DEBUG");
+  origami::Logger::instance().update_from_env();
   origami::runtime_options::get().update_from_env();
 }
 
@@ -97,6 +98,7 @@ TEST_CASE("Logger: text log is not written when debug is disabled", "[logger]") 
 
   portable_setenv("ORIGAMI_LOG_FILE", log_path.c_str(), 1);
   portable_unsetenv("ANALYTICAL_GEMM_DEBUG");
+  origami::Logger::instance().update_from_env();
   origami::runtime_options::get().update_from_env();
 
   auto hardware = make_hardware(942);
@@ -107,11 +109,11 @@ TEST_CASE("Logger: text log is not written when debug is disabled", "[logger]") 
   origami::Logger::instance().flush();
 
   std::string contents = read_file(log_path);
-  // Should have no DEBUG lines (only INFO from logger init/shutdown)
   REQUIRE(contents.find("[DEBUG]") == std::string::npos);
 
   std::remove(log_path.c_str());
   portable_unsetenv("ORIGAMI_LOG_FILE");
+  origami::Logger::instance().update_from_env();
 }
 
 // ---------------------------------------------------------------------------
@@ -150,29 +152,10 @@ TEST_CASE("CsvLogger: CSV output from GEMM evaluation contains expected columns"
 
   portable_setenv("ORIGAMI_CSV_FILE", csv_path.c_str(), 1);
   portable_setenv("ANALYTICAL_GEMM_DEBUG", "1", 1);
+  origami::CsvLogger::instance().update_from_env();
   origami::runtime_options::get().update_from_env();
 
-  // CsvLogger is a singleton initialized once from env. Since the env var
-  // may not have been set when the singleton was first created, we test
-  // via direct process_debug_message calls and verify the file output
-  // through a fresh CsvLogger-like flow.
-
-  // However, we CAN exercise the full pipeline if the env var was set
-  // before CsvLogger::instance() was first called. In unit tests the
-  // singleton may already exist, so we exercise the message parsing path
-  // directly and verify the file is written.
-
-  auto& csv = origami::CsvLogger::instance();
-  if (!csv.is_enabled()) {
-    // Singleton was created before ORIGAMI_CSV_FILE was set.
-    // Skip file-based assertions but still verify no crash.
-    portable_unsetenv("ORIGAMI_CSV_FILE");
-    portable_unsetenv("ANALYTICAL_GEMM_DEBUG");
-    origami::runtime_options::get().update_from_env();
-    WARN("CsvLogger singleton was initialized before ORIGAMI_CSV_FILE was set; "
-         "skipping file output test. Re-run with ORIGAMI_CSV_FILE set before test start.");
-    return;
-  }
+  REQUIRE(origami::CsvLogger::instance().is_enabled());
 
   auto hardware = make_hardware(942);
   auto problem  = make_problem(4096, 4096, 2048);
@@ -180,18 +163,23 @@ TEST_CASE("CsvLogger: CSV output from GEMM evaluation contains expected columns"
 
   origami::compute_total_latency(problem, hardware, config, hardware.N_CU);
 
-  // Run a second evaluation with different problem size to get multiple rows
   auto problem2 = make_problem(1024, 1024, 512);
   origami::compute_total_latency(problem2, hardware, config, hardware.N_CU);
 
-  // CsvLogger writes on destruction; we cannot trigger that in-process.
-  // Instead, verify the internal state produced correct messages by
-  // checking the singleton is still enabled and no crash occurred.
-  REQUIRE(csv.is_enabled());
-
+  // Flush CSV by switching to a disabled state, which writes accumulated rows
   portable_unsetenv("ORIGAMI_CSV_FILE");
   portable_unsetenv("ANALYTICAL_GEMM_DEBUG");
+  origami::CsvLogger::instance().update_from_env();
   origami::runtime_options::get().update_from_env();
+
+  std::string contents = read_file(csv_path);
+  REQUIRE_FALSE(contents.empty());
+  REQUIRE(contents.find("total_latency") != std::string::npos);
+  REQUIRE(contents.find("L_mem") != std::string::npos);
+  REQUIRE(contents.find("L_compute") != std::string::npos);
+  // Should have header + 2 data rows
+  REQUIRE(count_occurrences(contents, "\n") >= 3);
+
   std::remove(csv_path.c_str());
 }
 

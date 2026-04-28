@@ -26,6 +26,7 @@ public:
     void log(LogLevel level, const std::string& message, const char* file, int line);
     bool is_enabled() const { return enabled_; }
     void flush();
+    void update_from_env();
 
     Logger(const Logger&) = delete;
     Logger& operator=(const Logger&) = delete;
@@ -49,6 +50,7 @@ public:
     bool is_enabled() const { return enabled_; }
 
     void process_debug_message(const std::string& message);
+    void update_from_env();
 
     CsvLogger(const CsvLogger&) = delete;
     CsvLogger& operator=(const CsvLogger&) = delete;

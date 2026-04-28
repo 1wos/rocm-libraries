@@ -71,6 +71,23 @@ void Logger::flush() {
     }
 }
 
+void Logger::update_from_env() {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (log_file_.is_open()) {
+        log_file_.close();
+    }
+    enabled_ = false;
+
+    const char* log_file_path = std::getenv("ORIGAMI_LOG_FILE");
+    if (log_file_path != nullptr && log_file_path[0] != '\0') {
+        log_file_.open(log_file_path, std::ios::out | std::ios::app);
+        if (log_file_.is_open()) {
+            enabled_ = true;
+        }
+    }
+}
+
 const char* Logger::level_to_string(LogLevel level) const {
     switch (level) {
         case LogLevel::DEBUG:   return "DEBUG";
@@ -111,6 +128,26 @@ CsvLogger::~CsvLogger() {
 CsvLogger& CsvLogger::instance() {
     static CsvLogger logger;
     return logger;
+}
+
+void CsvLogger::update_from_env() {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (enabled_ && !rows_.empty()) {
+        flush_to_file();
+    }
+
+    rows_.clear();
+    columns_.clear();
+    column_index_.clear();
+    enabled_ = false;
+    csv_path_.clear();
+
+    const char* csv_path = std::getenv("ORIGAMI_CSV_FILE");
+    if (csv_path != nullptr && csv_path[0] != '\0') {
+        csv_path_ = csv_path;
+        enabled_  = true;
+    }
 }
 
 void CsvLogger::process_debug_message(const std::string& message) {
