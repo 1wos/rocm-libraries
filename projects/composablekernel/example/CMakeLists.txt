@@ -51,6 +51,10 @@ function(add_example_dependencies EXAMPLE_NAME FILE_NAME)
     endif()
 endfunction(add_example_dependencies EXAMPLE_NAME)
 
+# ---------------------------------------------------------------------------
+# Two-pass instruction-prefetch offset patching (shared cmake module)
+include(InstPrefetchPatch)
+
 function(add_example_executable EXAMPLE_NAME FILE_NAME)
     message(DEBUG "adding example ${EXAMPLE_NAME}")
     set(result 1)
