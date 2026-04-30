@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <fstream>
 #include <memory>
 #include <mutex>
@@ -24,7 +25,7 @@ class Logger {
 public:
     static Logger& instance();
     void log(LogLevel level, const std::string& message, const char* file, int line);
-    bool is_enabled() const { return enabled_; }
+    bool is_enabled() const { return enabled_.load(std::memory_order_acquire); }
     void flush();
     void update_from_env();
 
@@ -39,7 +40,7 @@ private:
 
     std::ofstream log_file_;
     std::mutex mutex_;
-    bool enabled_;
+    std::atomic<bool> enabled_;
 
     const char* level_to_string(LogLevel level) const;
 };
@@ -47,7 +48,7 @@ private:
 class CsvLogger {
 public:
     static CsvLogger& instance();
-    bool is_enabled() const { return enabled_; }
+    bool is_enabled() const { return enabled_.load(std::memory_order_acquire); }
 
     void process_debug_message(const std::string& message);
     void update_from_env();
@@ -64,12 +65,12 @@ private:
     void begin_row();
     void record(const std::string& key, const std::string& value);
     void end_row();
-    void flush_to_file();
+    void flush_to_file_locked();
     static std::string escape_csv(const std::string& field);
 
     std::string csv_path_;
     std::mutex mutex_;
-    bool enabled_;
+    std::atomic<bool> enabled_;
 
     std::vector<std::string> columns_;
     std::unordered_map<std::string, size_t> column_index_;
@@ -105,20 +106,28 @@ private:
 } // namespace origami
 
 #define ORIGAMI_LOG_DEBUG(msg) \
-    if (origami::Logger::instance().is_enabled() || origami::CsvLogger::instance().is_enabled()) \
-        origami::LogStream(origami::LogLevel::DEBUG, __FILE__, __LINE__) << msg
+    do { \
+        if (origami::Logger::instance().is_enabled() || origami::CsvLogger::instance().is_enabled()) \
+            origami::LogStream(origami::LogLevel::DEBUG, __FILE__, __LINE__) << msg; \
+    } while (0)
 
 #define ORIGAMI_LOG_INFO(msg) \
-    if (origami::Logger::instance().is_enabled()) \
-        origami::LogStream(origami::LogLevel::INFO, __FILE__, __LINE__) << msg
+    do { \
+        if (origami::Logger::instance().is_enabled()) \
+            origami::LogStream(origami::LogLevel::INFO, __FILE__, __LINE__) << msg; \
+    } while (0)
 
 #define ORIGAMI_LOG_WARNING(msg) \
-    if (origami::Logger::instance().is_enabled()) \
-        origami::LogStream(origami::LogLevel::WARNING, __FILE__, __LINE__) << msg
+    do { \
+        if (origami::Logger::instance().is_enabled()) \
+            origami::LogStream(origami::LogLevel::WARNING, __FILE__, __LINE__) << msg; \
+    } while (0)
 
 #define ORIGAMI_LOG_ERROR(msg) \
-    if (origami::Logger::instance().is_enabled()) \
-        origami::LogStream(origami::LogLevel::ERROR, __FILE__, __LINE__) << msg
+    do { \
+        if (origami::Logger::instance().is_enabled()) \
+            origami::LogStream(origami::LogLevel::ERROR, __FILE__, __LINE__) << msg; \
+    } while (0)
 
 #define OLOG_DEBUG ORIGAMI_LOG_DEBUG
 #define OLOG_INFO ORIGAMI_LOG_INFO
