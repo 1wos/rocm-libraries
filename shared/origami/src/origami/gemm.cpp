@@ -101,6 +101,10 @@ context_t::context_t(const problem_t& problem, const hardware_t& hardware, const
     OLOG_DEBUG("N: " << int(N));
     OLOG_DEBUG("Batch: " << int(batch));
     OLOG_DEBUG("K: " << int(K));
+    OLOG_DEBUG("InputDataTypeA: " << datatype_to_string(problem.a_dtype));
+    OLOG_DEBUG("InputDataTypeB: " << datatype_to_string(problem.b_dtype));
+    OLOG_DEBUG("OutputDataType: " << datatype_to_string(problem.d_dtype));
+    OLOG_DEBUG("ComputeType: " << datatype_to_string(problem.mi_dtype));
     OLOG_DEBUG("MacroTile: " << int(MT_M) << "x" << int(MT_N) << "x" << int(MT_K));
     OLOG_DEBUG("MatrixInstruction: " << int(MI_M) << "x" << int(MI_N) << "x" << int(MI_K));
     OLOG_DEBUG("ElementSizeA (bits): " << int(a_bits));
