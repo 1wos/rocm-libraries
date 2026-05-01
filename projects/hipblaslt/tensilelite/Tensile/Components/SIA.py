@@ -535,7 +535,14 @@ def noSchedGlobalRead(writer, kernel, globalReadIncACode, globalReadIncBCode):
     tdmLoadIter = min(localWriteEndIter + 1, kernel["LoopIters"] - 1)
 
     if kernel["PrefetchGlobalRead"] == 2:
-        imod = writer.codes.perIterGlobalRead[0].add(Module())
+        # For SIA=0, place GR in the LAST unrolled iteration so it executes AFTER the
+        # local write (LW) of that same iteration.  _makeSubIterSchedule emits LW before
+        # GR within an iteration, so both LW and GR in iter (LoopIters-1) guarantees
+        # LW saves G2L to LDS before GR overwrites G2L with the next K-block.
+        # Placing GR in iter 0 (old behavior) caused GR to run one full unrolled-iteration
+        # before LW, corrupting the data LW needs.
+        grIter = max(kernel["LoopIters"] - 1, 0) if (kernel["ScheduleIterAlg"] == 0 and not tdmDeferLoad) else 0
+        imod = writer.codes.perIterGlobalRead[grIter].add(Module())
         imod.addComment1("Global Read IncA")
         imod.add(globalReadIncACode)
         imod.addComment1("Global Read IncB")
