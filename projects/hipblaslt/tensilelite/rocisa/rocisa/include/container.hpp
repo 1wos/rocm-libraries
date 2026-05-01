@@ -1136,7 +1136,7 @@ namespace rocisa
                 else
                 {
                     return minusStr + regType + "[" + macroSlash + regType + "gpr"
-                           + regName->toString() + msbStr + ":" + regType + "gpr" + regName->toString() + msbStr + "+"
+                           + regName->toString() + msbStr + ":" + macroSlash + regType + "gpr" + regName->toString() + msbStr + "+"
                            + std::to_string(regNum - 1) + "]" + absStr;
                 }
             }
