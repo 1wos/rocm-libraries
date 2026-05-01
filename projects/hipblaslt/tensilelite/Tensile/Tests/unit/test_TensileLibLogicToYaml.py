@@ -482,6 +482,9 @@ def findAvailableArchs():
     return availableArchs
 
 
+# skipif's findAvailableArchs() calls rocm_agent_enumerator which crashes
+# collection on CPU-only runners. gpu marker skips this test before skipif evaluates.
+@pytest.mark.gpu
 @pytest.mark.skipif(
     "gfx950" not in findAvailableArchs(), reason="Requires gfx950 architecture"
 )

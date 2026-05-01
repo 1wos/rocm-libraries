@@ -55,14 +55,14 @@ if(TENSILELITE_ENABLE_HOST)
     add_subdirectory(src)
     add_subdirectory(include)
 
-    if(TENSILELITE_ENABLE_CLIENT)
+    if(TENSILELITE_ENABLE_CLIENT AND NOT WIN32)
         # mxDataGenerator bootstrap and `hipblaslt::mxdatagen` helper target
         # live in projects/hipblaslt/CMakeLists.txt and are guaranteed to be
         # available before this subdirectory is processed.
         add_subdirectory(client)
     endif()
 
-    if(TENSILELITE_BUILD_TESTING OR BUILD_TESTING)
+    if((TENSILELITE_BUILD_TESTING OR BUILD_TESTING) AND NOT WIN32)
         add_subdirectory(tests)
     endif()
 endif()

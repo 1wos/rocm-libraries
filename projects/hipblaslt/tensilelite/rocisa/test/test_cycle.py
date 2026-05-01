@@ -244,6 +244,7 @@ def check_cycles(test_case_f):
     cycles = get_cycles(kernel_body)
     return cycles, ground_cycles
 
+@pytest.mark.gpu
 @pytest.mark.parametrize("test_case_f", [
     empty_case,
     lr_test_case,
