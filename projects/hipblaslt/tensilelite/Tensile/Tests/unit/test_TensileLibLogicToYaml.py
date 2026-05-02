@@ -473,7 +473,10 @@ def findAvailableArchs():
     if "TENSILE_ROCM_PATH" in os.environ:
         rocmpath = os.environ.get("TENSILE_ROCM_PATH")
     rocmAgentEnum = os.path.join(rocmpath, "bin/rocm_agent_enumerator")
-    output = subprocess.check_output([rocmAgentEnum, "-t", "GPU"])
+    try:
+        output = subprocess.check_output([rocmAgentEnum, "-t", "GPU"])
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return availableArchs
     lines = output.decode().splitlines()
     for line in lines:
         line = line.strip()
@@ -482,9 +485,6 @@ def findAvailableArchs():
     return availableArchs
 
 
-# skipif's findAvailableArchs() calls rocm_agent_enumerator which crashes
-# collection on CPU-only runners. gpu marker skips this test before skipif evaluates.
-@pytest.mark.gpu
 @pytest.mark.skipif(
     "gfx950" not in findAvailableArchs(), reason="Requires gfx950 architecture"
 )
