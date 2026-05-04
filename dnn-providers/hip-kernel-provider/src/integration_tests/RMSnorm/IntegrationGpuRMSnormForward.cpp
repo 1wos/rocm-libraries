@@ -53,13 +53,19 @@ protected:
         auto xTensorAttr = std::make_shared<graph::TensorAttributes>(std::move(xAttr));
 
         auto scaleDataType = getDataTypeEnumFromType<ScaleDataType>();
-        auto scaleAttr = makeTensorAttributes(
-            "scale", scaleDataType, testCase.scaleDims, generateStrides(testCase.scaleDims));
+        auto scaleAttr
+            = makeTensorAttributes("scale",
+                                   scaleDataType,
+                                   testCase.scaleDims,
+                                   generateStrides(testCase.scaleDims, layout.strideOrder));
         auto scaleTensorAttr = std::make_shared<graph::TensorAttributes>(std::move(scaleAttr));
 
         // type must match scale
-        auto biasAttr = makeTensorAttributes(
-            "bias", scaleDataType, testCase.scaleDims, generateStrides(testCase.scaleDims));
+        auto biasAttr
+            = makeTensorAttributes("bias",
+                                   scaleDataType,
+                                   testCase.scaleDims,
+                                   generateStrides(testCase.scaleDims, layout.strideOrder));
         auto biasTensorAttr = std::make_shared<graph::TensorAttributes>(std::move(biasAttr));
 
         auto epsilon = std::make_shared<TensorAttributes>(1e-5f);
@@ -133,13 +139,28 @@ using IntegrationGpuRMSnormForwardBfp16Fp32Fp32Fp32
     }                                                                                             \
     INSTANTIATE_TEST_SUITE_P(Smoke, TestCase##NCHW, testing::ValuesIn(getRMSnormTestCases()));    \
     INSTANTIATE_TEST_SUITE_P(Full, TestCase##NCHW, testing::ValuesIn(getRMSnormFullTestCases())); \
+    /* --- NHWC --- */                                                                            \
+    using TestCase##NHWC = TestCase;                                                              \
+    TEST_P(TestCase##NHWC, Correctness)                                                           \
+    {                                                                                             \
+        runGraphTest(TensorLayout::NHWC);                                                         \
+    }                                                                                             \
+    INSTANTIATE_TEST_SUITE_P(Smoke, TestCase##NHWC, testing::ValuesIn(getRMSnormTestCases()));    \
+    INSTANTIATE_TEST_SUITE_P(Full, TestCase##NHWC, testing::ValuesIn(getRMSnormFullTestCases())); \
     /* --- NCDHW --- */                                                                           \
     using TestCase##NCDHW = TestCase;                                                             \
     TEST_P(TestCase##NCDHW, Correctness)                                                          \
     {                                                                                             \
         runGraphTest(TensorLayout::NCDHW);                                                        \
     }                                                                                             \
-    INSTANTIATE_TEST_SUITE_P(Smoke, TestCase##NCDHW, testing::ValuesIn(getRMSnorm3dTestCases()));
+    INSTANTIATE_TEST_SUITE_P(Smoke, TestCase##NCDHW, testing::ValuesIn(getRMSnorm3dTestCases())); \
+    /* --- NDHWC --- */                                                                           \
+    using TestCase##NDHWC = TestCase;                                                             \
+    TEST_P(TestCase##NDHWC, Correctness)                                                          \
+    {                                                                                             \
+        runGraphTest(TensorLayout::NDHWC);                                                        \
+    }                                                                                             \
+    INSTANTIATE_TEST_SUITE_P(Smoke, TestCase##NDHWC, testing::ValuesIn(getRMSnorm3dTestCases()));
 
 REGISTER_RMS_TEST(IntegrationGpuRMSnormForwardFp32Fp32Fp32Fp32);
 REGISTER_RMS_TEST(IntegrationGpuRMSnormForwardFp16Fp32Fp16Fp32);
