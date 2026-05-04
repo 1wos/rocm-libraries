@@ -29,17 +29,26 @@
 #include <atomic>
 #include <cstdio>
 #include <filesystem>
-#include <unistd.h>
 #include <fstream>
 #include <sstream>
 #include <string>
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 #include "common.hpp"
 #include "origami/logger.hpp"
 
 static std::string unique_temp_path(const std::string& prefix, const std::string& ext) {
   static std::atomic<int> counter{0};
   auto dir  = std::filesystem::temp_directory_path();
-  auto name = prefix + "_" + std::to_string(getpid()) + "_" + std::to_string(counter++) + ext;
+#ifdef _WIN32
+  auto pid = _getpid();
+#else
+  auto pid = getpid();
+#endif
+  auto name = prefix + "_" + std::to_string(pid) + "_" + std::to_string(counter++) + ext;
   return (dir / name).string();
 }
 

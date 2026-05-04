@@ -51,19 +51,21 @@ void Logger::log(LogLevel level, const std::string& message, const char* file, i
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
-    
-    if (log_file_.is_open()) {
-        const char* filename = file;
-        for (const char* p = file; *p; p++) {
-            if (*p == '/' || *p == '\\') {
-                filename = p + 1;
-            }
-        }
 
-        log_file_ << "[" << level_to_string(level) << "] "
-                  << filename << ":" << line << " - "
-                  << message << std::endl;
+    if (!enabled_.load(std::memory_order_relaxed) || !log_file_.is_open()) {
+        return;
     }
+
+    const char* filename = file;
+    for (const char* p = file; *p; p++) {
+        if (*p == '/' || *p == '\\') {
+            filename = p + 1;
+        }
+    }
+
+    log_file_ << "[" << level_to_string(level) << "] "
+              << filename << ":" << line << " - "
+              << message << std::endl;
 }
 
 void Logger::flush() {
@@ -147,6 +149,7 @@ void CsvLogger::update_from_env() {
         rows_.clear();
         columns_.clear();
         column_index_.clear();
+        header_written_ = false;
     }
 
     csv_path_ = new_path;
@@ -225,17 +228,27 @@ std::string CsvLogger::escape_csv(const std::string& field) {
 }
 
 void CsvLogger::flush_to_file_locked() {
-    std::ofstream file(csv_path_, std::ios::out | std::ios::trunc);
+    if (rows_.empty()) return;
+
+    bool file_exists = std::ifstream(csv_path_).good();
+    bool need_header = !file_exists || !header_written_;
+
+    std::ofstream file(csv_path_,
+                       need_header ? (std::ios::out | std::ios::trunc)
+                                   : (std::ios::out | std::ios::app));
     if (!file.is_open()) {
         std::cerr << "Warning: Failed to open CSV file: " << csv_path_ << std::endl;
         return;
     }
 
-    for (size_t i = 0; i < columns_.size(); ++i) {
-        if (i > 0) file << ",";
-        file << escape_csv(columns_[i]);
+    if (need_header) {
+        for (size_t i = 0; i < columns_.size(); ++i) {
+            if (i > 0) file << ",";
+            file << escape_csv(columns_[i]);
+        }
+        file << "\n";
+        header_written_ = true;
     }
-    file << "\n";
 
     for (const auto& row : rows_) {
         for (size_t i = 0; i < columns_.size(); ++i) {
@@ -246,6 +259,8 @@ void CsvLogger::flush_to_file_locked() {
         }
         file << "\n";
     }
+
+    rows_.clear();
 }
 
 } // namespace origami

@@ -346,7 +346,12 @@ export ANALYTICAL_GEMM_DEBUG=1
 export ORIGAMI_CSV_FILE=/tmp/origami_debug.csv
 ```
 
-The CSV file is written at process exit and contains columns for every value logged with `OLOG_DEBUG`, such as `M`, `N`, `K`, `L_mem`, `L_compute`, `H_mem_l2_A`, `total_latency`, etc. This is useful for bulk analysis of the latency model across many GEMM problems.
+The CSV file contains columns for every value logged with `OLOG_DEBUG`, such as `M`, `N`, `K`, `L_mem`, `L_compute`, `H_mem_l2_A`, `total_latency`, etc. This is useful for bulk analysis of the latency model across many GEMM problems.
+
+Accumulated rows are flushed to disk in two situations:
+
+1. **At process exit** — the `CsvLogger` destructor writes any remaining rows.
+2. **When `ORIGAMI_CSV_FILE` is unset or changed** — calling `CsvLogger::update_from_env()` flushes buffered rows to the current file before switching to the new path (or disabling). Subsequent rows are appended incrementally.
 
 Both logging modes can be enabled simultaneously or independently — `ORIGAMI_CSV_FILE` does not require `ORIGAMI_LOG_FILE` and vice versa.
 

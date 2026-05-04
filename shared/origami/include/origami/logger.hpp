@@ -75,6 +75,7 @@ private:
     std::vector<std::string> columns_;
     std::unordered_map<std::string, size_t> column_index_;
     std::vector<std::vector<std::string>> rows_;
+    bool header_written_ = false;
 };
 
 class LogStream {
