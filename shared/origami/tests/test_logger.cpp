@@ -26,12 +26,22 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
+#include <atomic>
 #include <cstdio>
+#include <filesystem>
+#include <unistd.h>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include "common.hpp"
 #include "origami/logger.hpp"
+
+static std::string unique_temp_path(const std::string& prefix, const std::string& ext) {
+  static std::atomic<int> counter{0};
+  auto dir  = std::filesystem::temp_directory_path();
+  auto name = prefix + "_" + std::to_string(getpid()) + "_" + std::to_string(counter++) + ext;
+  return (dir / name).string();
+}
 
 // Helper: read entire file into a string
 static std::string read_file(const std::string& path) {
@@ -57,7 +67,7 @@ static size_t count_occurrences(const std::string& text, const std::string& sub)
 // ---------------------------------------------------------------------------
 
 TEST_CASE("Logger: text log writes debug messages when enabled", "[logger]") {
-  const std::string log_path = "test_text_logger.log";
+  const std::string log_path = unique_temp_path("origami_log", ".log");
   std::remove(log_path.c_str());
 
   portable_setenv("ORIGAMI_LOG_FILE", log_path.c_str(), 1);
@@ -93,7 +103,7 @@ TEST_CASE("Logger: text log writes debug messages when enabled", "[logger]") {
 }
 
 TEST_CASE("Logger: text log is not written when debug is disabled", "[logger]") {
-  const std::string log_path = "test_text_logger_disabled.log";
+  const std::string log_path = unique_temp_path("origami_log_disabled", ".log");
   std::remove(log_path.c_str());
 
   portable_setenv("ORIGAMI_LOG_FILE", log_path.c_str(), 1);
@@ -121,33 +131,80 @@ TEST_CASE("Logger: text log is not written when debug is disabled", "[logger]") 
 // ---------------------------------------------------------------------------
 
 TEST_CASE("CsvLogger: process_debug_message parses key-value pairs", "[logger][csv]") {
-  auto& csv = origami::CsvLogger::instance();
-  // Manually drive the CSV logger through its message processing interface
-  // to verify parsing without needing full GEMM evaluation.
+  const std::string csv_path = unique_temp_path("origami_csv_parse", ".csv");
+  std::remove(csv_path.c_str());
 
-  // Simulate a row
+  portable_setenv("ORIGAMI_CSV_FILE", csv_path.c_str(), 1);
+  origami::CsvLogger::instance().update_from_env();
+  REQUIRE(origami::CsvLogger::instance().is_enabled());
+
+  auto& csv = origami::CsvLogger::instance();
+
   csv.process_debug_message("======== Origami Debug Info ========");
-  csv.process_debug_message("TestKey1: 42");
-  csv.process_debug_message("TestKey2: 3.14");
+  csv.process_debug_message("Alpha: 42");
+  csv.process_debug_message("Beta: 3.14");
+  csv.process_debug_message("Gamma: hello");
   csv.process_debug_message("=================================");
 
-  // The row was committed internally. We cannot directly inspect rows_
-  // (private), but we verify through the full CSV pipeline in subsequent tests.
-  REQUIRE(csv.is_enabled() == (std::getenv("ORIGAMI_CSV_FILE") != nullptr));
+  // Flush by disabling — update_from_env writes accumulated rows before switching
+  portable_unsetenv("ORIGAMI_CSV_FILE");
+  origami::CsvLogger::instance().update_from_env();
+
+  std::string contents = read_file(csv_path);
+  REQUIRE_FALSE(contents.empty());
+
+  // Header row must contain all three column names
+  REQUIRE(contents.find("Alpha") != std::string::npos);
+  REQUIRE(contents.find("Beta") != std::string::npos);
+  REQUIRE(contents.find("Gamma") != std::string::npos);
+
+  // Data row must contain the values
+  REQUIRE(contents.find("42") != std::string::npos);
+  REQUIRE(contents.find("3.14") != std::string::npos);
+  REQUIRE(contents.find("hello") != std::string::npos);
+
+  // Expect exactly 2 lines: header + 1 data row
+  REQUIRE(count_occurrences(contents, "\n") == 2);
+
+  std::remove(csv_path.c_str());
 }
 
 TEST_CASE("CsvLogger: process_debug_message ignores messages outside a row", "[logger][csv]") {
+  const std::string csv_path = unique_temp_path("origami_csv_outside", ".csv");
+  std::remove(csv_path.c_str());
+
+  portable_setenv("ORIGAMI_CSV_FILE", csv_path.c_str(), 1);
+  origami::CsvLogger::instance().update_from_env();
+  REQUIRE(origami::CsvLogger::instance().is_enabled());
+
   auto& csv = origami::CsvLogger::instance();
 
-  // Messages outside begin/end markers should not cause errors
+  // These messages are outside begin/end markers — they must not appear in output
+  csv.process_debug_message("Stray: should_not_appear");
   csv.process_debug_message("Hand-optimized kernel gfx950_BF16_TN, efficiency: 0.95");
-  csv.process_debug_message("RandomMessage: value");
-  // No crash or assertion failure = pass
-  REQUIRE(true);
+
+  // Now do a proper row so the file gets written
+  csv.process_debug_message("======== Origami Debug Info ========");
+  csv.process_debug_message("ValidKey: 99");
+  csv.process_debug_message("=================================");
+
+  portable_unsetenv("ORIGAMI_CSV_FILE");
+  origami::CsvLogger::instance().update_from_env();
+
+  std::string contents = read_file(csv_path);
+  REQUIRE_FALSE(contents.empty());
+
+  // The stray message's value must not be in the CSV
+  REQUIRE(contents.find("should_not_appear") == std::string::npos);
+  // The valid row's data must be present
+  REQUIRE(contents.find("ValidKey") != std::string::npos);
+  REQUIRE(contents.find("99") != std::string::npos);
+
+  std::remove(csv_path.c_str());
 }
 
 TEST_CASE("CsvLogger: CSV output from GEMM evaluation contains expected columns", "[logger][csv]") {
-  const std::string csv_path = "test_csv_logger.csv";
+  const std::string csv_path = unique_temp_path("origami_csv_gemm", ".csv");
   std::remove(csv_path.c_str());
 
   portable_setenv("ORIGAMI_CSV_FILE", csv_path.c_str(), 1);
@@ -184,17 +241,34 @@ TEST_CASE("CsvLogger: CSV output from GEMM evaluation contains expected columns"
 }
 
 TEST_CASE("CsvLogger: escape_csv handles special characters", "[logger][csv]") {
-  // Test the CSV escaping through the public interface by verifying that
-  // messages containing commas and quotes don't break the parser.
+  const std::string csv_path = unique_temp_path("origami_csv_escape", ".csv");
+  std::remove(csv_path.c_str());
+
+  portable_setenv("ORIGAMI_CSV_FILE", csv_path.c_str(), 1);
+  origami::CsvLogger::instance().update_from_env();
+
   auto& csv = origami::CsvLogger::instance();
 
   csv.process_debug_message("======== Origami Debug Info ========");
-  csv.process_debug_message("KeyWithComma: 1,2,3");
-  csv.process_debug_message("KeyWithQuote: he said \"hello\"");
+  csv.process_debug_message("CommaVal: 1,2,3");
+  csv.process_debug_message("QuoteVal: he said \"hi\"");
+  csv.process_debug_message("PlainVal: 42");
   csv.process_debug_message("=================================");
 
-  // No crash = pass; escaping is exercised when flush_to_file runs
-  REQUIRE(true);
+  portable_unsetenv("ORIGAMI_CSV_FILE");
+  origami::CsvLogger::instance().update_from_env();
+
+  std::string contents = read_file(csv_path);
+  REQUIRE_FALSE(contents.empty());
+
+  // Value containing a comma must be wrapped in double quotes
+  REQUIRE(contents.find("\"1,2,3\"") != std::string::npos);
+  // Value containing quotes must have them doubled and be wrapped
+  REQUIRE(contents.find("\"he said \"\"hi\"\"\"") != std::string::npos);
+  // Plain value must appear unquoted
+  REQUIRE(contents.find("42") != std::string::npos);
+
+  std::remove(csv_path.c_str());
 }
 
 TEST_CASE("CsvLogger: debug logging produces consistent latency values", "[logger][csv]") {
