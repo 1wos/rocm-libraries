@@ -122,7 +122,13 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 32u, CtrlFlags, CompilerTar
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
-        return {__builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32(0, aVec, 0, bVec, cVec, idx, 0)};
+        return {__builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32(true, // A signedness
+                                                             aVec,
+                                                             true, // B signedness
+                                                             bVec,
+                                                             cVec,
+                                                             idx,
+                                                             CtrlFlags::Clamp)};
     }
 };
 
