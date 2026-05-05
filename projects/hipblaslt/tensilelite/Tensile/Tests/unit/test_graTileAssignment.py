@@ -29,6 +29,8 @@ from gpu_test_helpers import (
 )
 from Tensile.Components.SubtileBasedKernel import graTileAssignment
 
+pytestmark = pytest.mark.gpu
+
 EXPORT_LOAD_PARAMS = (
     (4, 2, 0x00, "output_ptr"),
     ("StrideA0I", 1, 0x08, "strideA"),

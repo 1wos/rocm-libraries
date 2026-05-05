@@ -38,6 +38,8 @@ from rocisa.code import Module
 from rocisa.container import sgpr
 from rocisa.instruction import SMovB32, SMovB64, SWaitCnt, SBarrier
 
+pytestmark = pytest.mark.gpu
+
 
 # ---------------------------------------------------------------------------
 # Test configurations
