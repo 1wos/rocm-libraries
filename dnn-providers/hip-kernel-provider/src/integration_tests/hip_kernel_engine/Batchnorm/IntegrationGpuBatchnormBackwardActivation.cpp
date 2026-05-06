@@ -9,7 +9,7 @@
 #include <hipdnn_test_sdk/utilities/TestUtilities.hpp>
 
 #include "../Common/ActivationCommon.hpp"
-#include "../IntegrationGraphVerificationHarness.hpp"
+#include "../../IntegrationGraphVerificationHarness.hpp"
 #include "BatchnormCommon.hpp"
 
 using namespace hipdnn_frontend;
