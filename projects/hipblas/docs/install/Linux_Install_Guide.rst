@@ -14,13 +14,11 @@ For a list of installation prerequisites, see :doc:`hipBLAS prerequisites <prere
 Installing prebuilt packages
 =============================
 
-You can manually download the prebuilt hipBLAS packages from the :doc:`ROCm native package manager <rocm-install-on-linux:install/quick-start>`.
-
-To download the prebuilt package, use this command:
-
-.. code-block:: shell
-
-   sudo apt update && sudo apt install hipblas
+hipBLAS is installed as part of the `ROCm Core SDK
+<https://rocm-stg.amd.com/en/docs-7.13.0/index.html>`__. For ROCm Core SDK
+installation instructions using your Linux distribution's package manager, pip,
+tarball, or the runfile installer, see `Install AMD ROCm
+<https://rocm-stg.amd.com/en/docs-7.13.0/install/rocm.html>`__.
 
 Building hipBLAS from source
 ============================

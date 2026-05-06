@@ -22,7 +22,7 @@ Installing prebuilt packages
 =============================
 
 Download the prebuilt packages from the native package manager for your distribution.
-For more information, see the :doc:`ROCm quick start installation guide <rocm-install-on-linux:install/quick-start>`.
+For more information, see the `ROCm quick start installation guide <rocm-install-on-linux:install/quick-start>`__.
 
 .. code-block:: bash
 

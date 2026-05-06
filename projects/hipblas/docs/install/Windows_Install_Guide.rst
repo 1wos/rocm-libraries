@@ -14,8 +14,9 @@ For a list of installation prerequisites, see :doc:`hipBLAS prerequisites <prere
 Installing prebuilt packages
 =============================
 
-hipBLAS can be installed on Windows using the :doc:`AMD HIP SDK installer <rocm-install-on-windows:index>`.
-For version support information, see the :doc:`System requirements for Windows <rocm-install-on-windows:reference/system-requirements>`.
+hipBLAS is installed as part of the :doc:`ROCm Core SDK <rocm:index>`. For ROCm
+Core SDK installation instructions on Windows via pip or tarball, see
+:doc:`Install AMD ROCm <rocm:install/rocm>`.
 
 The simplest way to use hipBLAS in your code is to use CMake. To install hipBLAS on Windows, follow these steps:
 
