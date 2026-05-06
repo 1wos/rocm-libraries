@@ -32,7 +32,7 @@ using namespace hipdnn_data_sdk::utilities;
 const std::vector<HipKernelContainer::EngineDefinition>& HipKernelContainer::getEngineDefinitions()
 {
     static const std::vector<EngineDefinition> s_engineDefinitions = {
-        // HIP_KERNEL_ENGINE
+    // HIP_KERNEL_ENGINE
 #ifdef HIPDNN_ENGINE_HIP_KERNEL
         {HIP_KERNEL_ENGINE_ID,
          [](const IKernelCompiler& kernelCompiler,
