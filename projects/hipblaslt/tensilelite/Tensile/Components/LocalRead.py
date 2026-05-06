@@ -561,7 +561,7 @@ class LocalReadMFMA(LocalRead):
     iui = Inner Unroll Idx
     epsi = expand pointer swap index. Only used for PAP
     """
-    def __call__(self, writer, kernel, bufferIdx, iui, epsi, tP):
+    def __call__(self, writer, kernel, bufferIdx, iui, epsi, tP, iterIdx = 0, lc = 0):
         imod = Module("LocalReadDo%s_I%s" % (tP["tensorChar"],iui))
         subTileIdx = writer.states.SubTileIdx if kernel["ForceUnrollSubIter"] else 0 # use SubTileIdx only for ForceUnrollSubIter
 
@@ -695,6 +695,11 @@ class LocalReadMFMA(LocalRead):
 
         subIterLoadCount = 0
         valufIdx = 0
+        # HalfPLR
+        halfPLR = (tP["isA"] or tP["isB"]) and kernel["HalfPLR%c"%tc]
+        if halfPLR:
+            halfPLRGroups = writer.getHalfPLRGroups(kernel, lc, iterIdx)
+        
         if enableLDSTr:
             numberMTilesPerWave = kernel["MIWaveTile"][tile01]
             if writer.states.asmCaps["HasWMMA_V3"]:
@@ -715,7 +720,11 @@ class LocalReadMFMA(LocalRead):
                                     if (kernel["LdsBlockSizePerPad%s"%tc] != 0) and (kernel["LdsPad%s"%tc] != 0):
                                         paddedOffset += int((paddedOffset // kernel["LdsBlockSizePerPad%s"%tc]) * kernel["LdsPad%s"%tc] * tP["bpeDS"])
                                     ds = DSModifiers(na=1, offset=paddedOffset)
-                                    destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc, bufferIdx, iui, wtRegStride * (tIdx * numTilePerInst+ti), 2 * (innerIdx + 2 * outerIdx)), blockWidth)
+                                    if halfPLR:
+                                        valuStr = writer.getHalfPLRValuStr(halfPLRGroups, wtRegStride * (tIdx * numTilePerInst+ti)+ 2 * (innerIdx + 2 * outerIdx), tc)
+                                        destVgpr = vgpr(valuStr, blockWidth)
+                                    else:
+                                        destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc, bufferIdx, iui, wtRegStride * (tIdx * numTilePerInst+ti), 2 * (innerIdx + 2 * outerIdx)), blockWidth)
                                     localReadCode = imod.add(Module("LocalRead%s Valu%u"%(tc, int(valufIdx))))
                                     self._emitLdsRead(writer, kernel, tP, LocalReadX, dst=destVgpr, src=vgpr("LocalReadAddr%s"%tc), ds=ds, module=localReadCode, comment="LDS Transpose")
                 elif tP["bpeDS"] == 0.75:
@@ -736,7 +745,11 @@ class LocalReadMFMA(LocalRead):
                                     paddedOffset += int((paddedOffset // kernel["LdsBlockSizePerPad%s"%tc]) * kernel["LdsPad%s"%tc] * tP["bpeDS"])
                                 ds = DSModifiers(na=1, offset=paddedOffset)
                                 vgprOffset = numVgprsPerLoad * (innerIdx + 2 * outerIdx)
-                                destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc, bufferIdx, iui, wtRegStride*tIdx, vgprOffset), blockWidth)
+                                if halfPLR:
+                                    valuStr = writer.getHalfPLRValuStr(halfPLRGroups, wtRegStride*tIdx + vgprOffset, tc)
+                                    destVgpr = vgpr(valuStr, blockWidth)
+                                else:
+                                    destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc, bufferIdx, iui, wtRegStride*tIdx, vgprOffset), blockWidth)
                                 localReadCode = imod.add(Module("LocalRead%s Valu%u"%(tc, int(valufIdx))))
                                 self._emitLdsRead(writer, kernel, tP, LocalReadX, dst=destVgpr, src=vgpr("LocalReadAddr%s"%tc), ds=ds, module=localReadCode, comment="LDS Transpose")
 
@@ -782,7 +795,11 @@ class LocalReadMFMA(LocalRead):
                                     if (kernel["LdsBlockSizePerPad%s"%tc] != 0) and (kernel["LdsPad%s"%tc] != 0):
                                         paddedOffset += int((paddedOffset // kernel["LdsBlockSizePerPad%s"%tc]) * kernel["LdsPad%s"%tc] * tP["bpeDS"])
                                     ds = DSModifiers(na=1, offset=paddedOffset)
-                                    destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc, bufferIdx, iui, wtRegStride*tIdx, 2*v+4*i), blockWidth)
+                                    if halfPLR:
+                                        valuStr = writer.getHalfPLRValuStr(halfPLRGroups, wtRegStride*tIdx + 2*v+4*i, tc)
+                                        destVgpr = vgpr(valuStr, blockWidth)
+                                    else:
+                                        destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc, bufferIdx, iui, wtRegStride*tIdx, 2*v+4*i), blockWidth)
                                     localReadCode: Module = imod.add(Module("LocalRead%s Valu%u"%(tc, int(valufIdx))))
                                     self._emitLdsRead(writer, kernel, tP, LocalReadX, dst=destVgpr, src=vgpr("LocalReadAddr%s"%tc), ds=ds, module=localReadCode, comment="LDS Transpose")
                 elif tP["bpeDS"] == 2:
@@ -795,11 +812,19 @@ class LocalReadMFMA(LocalRead):
                         ds = DSModifiers(na=1, offset=offset_val)
                         LocalReadX = instruction.getInst(0)
                         wtRegStride = int(MIInputPerThUnroll * tP["bpeDS"] // bpr)
-                        destVgpr = vgpr("Valu%s_X%u_I%u+%u+0"%(tc,bufferIdx,iui, wtRegStride*tIdx), blockWidth)
+                        if halfPLR:
+                            valuStr = writer.getHalfPLRValuStr(halfPLRGroups, wtRegStride*tIdx, tc)
+                            destVgpr = vgpr(valuStr, blockWidth)
+                        else:
+                            destVgpr = vgpr("Valu%s_X%u_I%u+%u+0"%(tc,bufferIdx,iui, wtRegStride*tIdx), blockWidth)
                         valuiIdx = int(valufIdx)
                         localReadCode = imod.add(Module("LocalRead%s Valu%u"%(tc,valuiIdx)))
                         self._emitLdsRead(writer, kernel, tP, LocalReadX, dst=destVgpr, src=vgpr("LocalReadAddr%s"%tc), ds=ds, module=localReadCode, comment="LDS Transpose")
-                        destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc,bufferIdx,iui, wtRegStride*tIdx, blockWidth), blockWidth)
+                        if halfPLR:
+                            valuStr = writer.getHalfPLRValuStr(halfPLRGroups, wtRegStride*tIdx + blockWidth, tc)
+                            destVgpr = vgpr(valuStr, blockWidth)
+                        else:
+                            destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc,bufferIdx,iui, wtRegStride*tIdx, blockWidth), blockWidth)
                         incrementBytes = int(numberLRVWPerMIInput*UnrollStride*kernel[f"LocalReadVectorWidth{tc if('MXS' not in tc) else 'MXS'}"]*tP["bpeDS"])
 
                         sparseDenseOffset = 0
@@ -814,13 +839,21 @@ class LocalReadMFMA(LocalRead):
                         self._emitLdsRead(writer, kernel, tP, LocalReadX, dst=destVgpr, src=vgpr("LocalReadAddr%s"%tc), ds=ds, module=localReadCode, comment="LDS Transpose")
                         if numberLRVWPerMIInput == 4:
                             # for the dense case when sparse.
-                            destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc,bufferIdx,iui, wtRegStride*tIdx, blockWidth * 2), blockWidth)
+                            if halfPLR:
+                                valuStr = writer.getHalfPLRValuStr(halfPLRGroups, wtRegStride*tIdx + blockWidth * 2, tc)
+                                destVgpr = vgpr(valuStr, blockWidth)
+                            else:
+                                destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc,bufferIdx,iui, wtRegStride*tIdx, blockWidth * 2), blockWidth)
                             offset_val = unpaddedOffset + incrementBytes * 2
                             if (kernel["LdsBlockSizePerPad%s"%tc] != 0) and (kernel["LdsPad%s"%tc] != 0):
                                 offset_val += int((offset_val // kernel["LdsBlockSizePerPad%s"%tc]) * kernel["LdsPad%s"%tc] * tP["bpeDS"])
                             ds = DSModifiers(na=1, offset=offset_val)
                             self._emitLdsRead(writer, kernel, tP, LocalReadX, dst=destVgpr, src=vgpr("LocalReadAddr%s"%tc), ds=ds, module=localReadCode, comment="LDS Transpose")
-                            destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc,bufferIdx,iui, wtRegStride*tIdx, blockWidth * 3), blockWidth)
+                            if halfPLR:
+                                valuStr = writer.getHalfPLRValuStr(halfPLRGroups, wtRegStride*tIdx + blockWidth * 3, tc)
+                                destVgpr = vgpr(valuStr, blockWidth)
+                            else:
+                                destVgpr = vgpr("Valu%s_X%u_I%u+%u+%u"%(tc,bufferIdx,iui, wtRegStride*tIdx, blockWidth * 3), blockWidth)
                             offset_val = unpaddedOffset + incrementBytes * 2 + sparseDenseOffset
                             if (kernel["LdsBlockSizePerPad%s"%tc] != 0) and (kernel["LdsPad%s"%tc] != 0):
                                 offset_val += int((offset_val // kernel["LdsBlockSizePerPad%s"%tc]) * kernel["LdsPad%s"%tc] * tP["bpeDS"])
@@ -895,7 +928,11 @@ class LocalReadMFMA(LocalRead):
                             valuiIdx = int(valufIdx)
                             baseValuiIdx = valuiIdx - (valuiIdx%8) # use multiple of 8
                             baseLRVgpr = vgpr("Valu%s_X%u_I%u+%u"%(tc, bufferIdx, iui, valuiIdx), numVgpr)
-                            destVgpr = baseLRVgpr
+                            if halfPLR:
+                                valuStr = writer.getHalfPLRValuStr(halfPLRGroups, valuiIdx, tc)
+                                destVgpr = vgpr(valuStr, numVgpr)
+                            else:
+                                destVgpr = baseLRVgpr
                             highBitsForHalf = (blockWidth == 0.5) and ((rIdx % 2) == 1) # rIdx = 1
                             isHigh16Bits = (blockWidth == 0.25) and ( ((rIdx % 4) //2) == 1) # 2,3
 

@@ -983,6 +983,11 @@ validParameters = { # we need to make sure this matches develop
     # 3: Use TDM for both A and B
     "TDMInst": [0, 1, 2, 3],
     "TDMSplit": [False, True],
+    # Enable PLR 0.5 to save vgprs
+    # 0: Disabled
+    # 1: Use PLR 0.5 for A
+    # 2: Use PLR 0.5 for B
+    "HalfPLR": [0, 1, 2]
 }
 
 newMIValidParameters = {
