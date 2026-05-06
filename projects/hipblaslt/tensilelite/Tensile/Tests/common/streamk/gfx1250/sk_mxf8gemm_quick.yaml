@@ -45,6 +45,8 @@ BenchmarkProblems:
       BenchmarkCommonParameters:
         - KernelLanguage: ["Assembly"]
       ForkParameters:
+        - BufferLoad: [0, 1]
+        - BufferStore: [0, 1]
         - UseSgprForGRO: [0]
         - ForceDisableShadowInit: [1]
         - MatrixInstruction:
@@ -116,6 +118,8 @@ BenchmarkProblems:
       BenchmarkCommonParameters:
         - KernelLanguage: ["Assembly"]
       ForkParameters:
+        - BufferLoad: [0, 1]
+        - BufferStore: [0, 1]
         - UseSgprForGRO: [0]
         - ForceDisableShadowInit: [1]
         - MatrixInstruction:
@@ -187,6 +191,8 @@ BenchmarkProblems:
       BenchmarkCommonParameters:
         - KernelLanguage: ["Assembly"]
       ForkParameters:
+        - BufferLoad: [0, 1]
+        - BufferStore: [0, 1]
         - UseSgprForGRO: [0]
         - ForceDisableShadowInit: [1]
         - MatrixInstruction:
@@ -260,6 +266,8 @@ BenchmarkProblems:
       BenchmarkCommonParameters:
         - KernelLanguage: ["Assembly"]
       ForkParameters:
+        - BufferLoad: [0, 1]
+        - BufferStore: [0, 1]
         - UseSgprForGRO: [0]
         - ForceDisableShadowInit: [1]
         - MatrixInstruction:

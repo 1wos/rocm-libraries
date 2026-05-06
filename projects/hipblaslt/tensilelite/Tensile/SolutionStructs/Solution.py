@@ -1368,6 +1368,8 @@ class Solution(collections.abc.Mapping):
         reject(state, printRejectionReason, "ScheduleLocalWrite not supported with Stream-K")
       if state["ScheduleIterAlg"] != 2 and state["ScheduleIterAlg"] != 3:
         reject(state, printRejectionReason, "ScheduleIterAlg not supported with Stream-K")
+      if not state["BufferStore"]:
+        reject(state, printRejectionReason, "Stream-K requires BufferStore")
       if state["StreamKAtomic"] == 1:
         if not state["ProblemType"]["DataType"].isSingle():
           reject(state, printRejectionReason, "Atomic Stream-K currently only tested for SGEMM")
@@ -1385,8 +1387,11 @@ class Solution(collections.abc.Mapping):
       state["StreamKFixupTreeReduction"] = 0
       state["DebugStreamK"] = 0
     
-    if (state["GlobalSplitU"] > 1 or state["GlobalSplitU"] == -1) and not state["BufferStore"]:
-      reject(state, printRejectionReason, "GlobalSplitU > 1 requires BufferStore (flat store workspace addressing not supported)")
+    if not state["BufferStore"]:
+      if state["GlobalSplitU"] != 0:
+        reject(state, printRejectionReason, "GlobalSplitU requires BufferStore (flat store workspace addressing not supported)")
+      elif state["_GlobalAccumulation"]:
+        reject(state, printRejectionReason, "GlobalAccumulation requires BufferStore (workspace SRD addressing not supported)")
 
     computeBytes = int(state["ProblemType"]["ComputeDataType"].numBytes())
     state["_WorkspaceSizePerElemC"] = computeBytes
@@ -1659,9 +1664,26 @@ class Solution(collections.abc.Mapping):
       if state["PrefetchGlobalRead"] >= 2:
         reject(state, printRejectionReason, "BufferLoad=0 does not support PrefetchGlobalRead>=2")
         return
-
+      if state["DirectToVgprA"]:
+        reject(state, printRejectionReason, "DirectToVgprA requires BufferLoad")
+        return
+      if state["DirectToVgprB"]:
+        reject(state, printRejectionReason, "DirectToVgprB requires BufferLoad")
+        return
       if problemType["UseBias"]:
         reject(state, printRejectionReason, "BufferLoad=0 does not support UseBias due to no suppress no load.")
+        return
+      if problemType["Sparse"]:
+        reject(state, printRejectionReason, "BufferLoad=0 does not support Sparse due to VGPR pressure from non-SRD addressing")
+        return
+      if problemType["GroupedGemm"]:
+        reject(state, printRejectionReason, "BufferLoad=0 does not support GroupedGemm")
+        return
+      # Sub-dword types (fp8, int8, fp16, bf16) have correctness issues with flat
+      # addressing: tail loop reload uses globalread_gpr_record not populated for
+      # flat path, and edge/tail global reads produce wrong results.
+      if problemType["DataType"].numBytes() < 4:
+        reject(state, printRejectionReason, "BufferLoad=0 does not support sub-dword data types (flat addressing not validated)")
         return
 
     #These modes only work under certain conditions, apply them here:
@@ -3314,9 +3336,22 @@ class Solution(collections.abc.Mapping):
     state["NumGlobalWriteVectorsPerThread"] = state["NumElementsPerThread"] \
         // state["GlobalWriteVectorWidth"]
 
+    # Non-buffer (global) stores only support up to dwordx4 (16 bytes) per instruction.
+    # Buffer stores support up to 32 bytes by splitting into two dwordx4 stores.
+    if not state["BufferStore"]:
+      gwvw = state["GlobalWriteVectorWidth"]
+      destBytes = state["ProblemType"]["DestDataType"].numBytes()
+      computeBytes = state["ProblemType"]["ComputeDataType"].numBytes()
+      effectiveBps = max(destBytes, computeBytes) * gwvw if state["_GlobalAccumulation"] else destBytes * gwvw
+      if effectiveBps > 16:
+        reject(state, printRejectionReason, "BufferStore=0 does not support store operations > 16 bytes (bps=%u)" % effectiveBps)
+        return
 
     # LocalSplitU but can't NumThreads%MacroTile doesn't support sideways store
     if state["LocalSplitU"] > 1:
+      if not state["BufferStore"]:
+        reject(state, printRejectionReason, "LocalSplitU > 1 requires BufferStore")
+        return
       if not state["SourceSwap"] and state["StoreVectorWidth"] > state["VectorWidthA"]:
         reject(state, printRejectionReason, "LSU and non-SourceSwap doesn't support StoreVectorWidth(%u)>VWA(%u)." \
             % (state["StoreVectorWidth"], state["VectorWidthA"]))

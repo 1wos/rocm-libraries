@@ -9479,7 +9479,7 @@ class KernelWriterAssembly(KernelWriter):
         module.addModuleAsFlatItems(self.s_mul_u64_u32(sgpr(maxAddrSgpr+0), sgpr(maxAddrSgpr+1),  \
                     sgpr("Sizes%s+%u"%("Sum" if sizeIdxIsSum else "Free", sizeIdx)),  \
                     sgpr("Stride%s%s"%(tc, self.states.indexChars[tP['ia'][-1]])), \
-                    "64b tensor%s size in elements"%tc))
+                    comment="64b tensor%s size in elements"%tc))
         module.add(scalarMultiply64Bpe(maxAddrSgpr, maxAddrSgpr, tP["bpeGR"], tmpSgpr, comment="<- tensor%s size in bytes"%tc))
 
         module.add(SAddU32(
@@ -14896,6 +14896,7 @@ class KernelWriterAssembly(KernelWriter):
   def refineOccupancy(self, kernel, atomic, element, actPCMaxTempSgpr, \
                       gwvw, maxVgprs, ss):
     # Get estimated numVgprAvailable
+    # Use block-aware counting to avoid overestimating with fragmented pools
     # print("Max vgprs =", maxVgprs, self.vgprPool.size(), self.vgprPool.availableBlock(ss.numVgprsPerElement, ss.align))
     numVgprAvailable = self.vgprPool.availableBlockMaxVgpr(maxVgprs, ss.numVgprsPerElement, ss.align)
 
@@ -14919,7 +14920,11 @@ class KernelWriterAssembly(KernelWriter):
       if maxVgprs != maxVgprsN:
         #print("refineOccupancy maxVgprs, new", maxVgprsN, "old", maxVgprs)
         return self.refineOccupancy(kernel, atomic, element, actPCMaxTempSgpr, gwvw, maxVgprsN, ss)
+      # After growing, try block-aware count again; fall back to simple count
+      # if the pool is too fragmented for aligned blocks
       numVgprAvailable = self.vgprPool.availableBlockMaxVgpr(maxVgprs, ss.numVgprsPerElement, ss.align)
+      if numVgprAvailable == 0:
+        numVgprAvailable = self.vgprPool.available()
 
     # print("NumVgprAvailable", numVgprAvailable)
     if ss.numVgprsPerElement:
