@@ -339,29 +339,28 @@ Each GEMM evaluation produces a block of key-value lines in the log file, e.g.:
 
 ### CSV Log
 
-Write structured CSV output (one row per GEMM evaluation) by setting `ORIGAMI_CSV_FILE`:
+Write structured CSV output (one row per GEMM evaluation) by using a `.csv` file extension:
 
 ```bash
 export ANALYTICAL_GEMM_DEBUG=1
-export ORIGAMI_CSV_FILE=/tmp/origami_debug.csv
+export ORIGAMI_LOG_FILE=/tmp/origami_debug.csv
 ```
+
+The log format is inferred from the file extension: `.csv` selects CSV mode, anything else selects human-readable text mode.
 
 The CSV file contains columns for every value logged with `OLOG_DEBUG`, such as `M`, `N`, `K`, `L_mem`, `L_compute`, `H_mem_l2_A`, `total_latency`, etc. This is useful for bulk analysis of the latency model across many GEMM problems.
 
 Accumulated rows are flushed to disk in two situations:
 
-1. **At process exit** — the `CsvLogger` destructor writes any remaining rows.
-2. **When `ORIGAMI_CSV_FILE` is unset or changed** — calling `CsvLogger::update_from_env()` flushes buffered rows to the current file before switching to the new path (or disabling). Subsequent rows are appended incrementally.
-
-Both logging modes can be enabled simultaneously or independently — `ORIGAMI_CSV_FILE` does not require `ORIGAMI_LOG_FILE` and vice versa.
+1. **At process exit** — the logger destructor writes any remaining rows.
+2. **On explicit flush or reconfiguration** — calling `Logger::flush()` writes buffered rows. Calling `Logger::update_from_env()` also flushes before applying the new configuration. Subsequent rows are appended incrementally.
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
 | `ANALYTICAL_GEMM_DEBUG` | Set to `1` to enable debug code paths in the latency model |
-| `ORIGAMI_LOG_FILE` | Path for human-readable text log output |
-| `ORIGAMI_CSV_FILE` | Path for structured CSV log output |
+| `ORIGAMI_LOG_FILE` | Path for log output; `.csv` extension selects CSV format, any other extension selects text |
 
 ## Contribute
 

@@ -5,7 +5,6 @@
 
 #include <atomic>
 #include <fstream>
-#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -21,11 +20,18 @@ enum class LogLevel {
     ERROR
 };
 
+enum class LogFormat {
+    TEXT,
+    CSV
+};
+
 class Logger {
 public:
     static Logger& instance();
-    void log(LogLevel level, const std::string& message, const char* file, int line);
     bool is_enabled() const { return enabled_.load(std::memory_order_acquire); }
+    LogFormat format() const { return format_; }
+
+    void log(LogLevel level, const std::string& message, const char* file, int line);
     void flush();
     void update_from_env();
 
@@ -38,39 +44,20 @@ private:
     Logger();
     ~Logger();
 
-    std::ofstream log_file_;
-    std::mutex mutex_;
-    std::atomic<bool> enabled_;
-
     const char* level_to_string(LogLevel level) const;
-};
-
-class CsvLogger {
-public:
-    static CsvLogger& instance();
-    bool is_enabled() const { return enabled_.load(std::memory_order_acquire); }
 
     void process_debug_message(const std::string& message);
-    void update_from_env();
-
-    CsvLogger(const CsvLogger&) = delete;
-    CsvLogger& operator=(const CsvLogger&) = delete;
-    CsvLogger(CsvLogger&&) = delete;
-    CsvLogger& operator=(CsvLogger&&) = delete;
-
-private:
-    CsvLogger();
-    ~CsvLogger();
-
     void begin_row();
     void record(const std::string& key, const std::string& value);
     void end_row();
-    void flush_to_file_locked();
+    void flush_csv_locked();
     static std::string escape_csv(const std::string& field);
 
-    std::string csv_path_;
+    std::string file_path_;
+    std::ofstream log_file_;
     std::mutex mutex_;
     std::atomic<bool> enabled_;
+    LogFormat format_ = LogFormat::TEXT;
 
     std::vector<std::string> columns_;
     std::unordered_map<std::string, size_t> column_index_;
@@ -84,11 +71,7 @@ public:
         : level_(level), file_(file), line_(line) {}
 
     ~LogStream() {
-        auto msg = stream_.str();
-        Logger::instance().log(level_, msg, file_, line_);
-        if (level_ == LogLevel::DEBUG && CsvLogger::instance().is_enabled()) {
-            CsvLogger::instance().process_debug_message(msg);
-        }
+        Logger::instance().log(level_, stream_.str(), file_, line_);
     }
 
     template<typename T>
@@ -108,7 +91,7 @@ private:
 
 #define ORIGAMI_LOG_DEBUG(msg) \
     do { \
-        if (origami::Logger::instance().is_enabled() || origami::CsvLogger::instance().is_enabled()) \
+        if (origami::Logger::instance().is_enabled()) \
             origami::LogStream(origami::LogLevel::DEBUG, __FILE__, __LINE__) << msg; \
     } while (0)
 

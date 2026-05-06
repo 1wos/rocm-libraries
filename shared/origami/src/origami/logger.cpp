@@ -5,38 +5,73 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <iomanip>
 #include <iostream>
 
+static origami::LogFormat format_from_path(const std::string& path) {
+    auto dot = path.rfind('.');
+    if (dot != std::string::npos) {
+        auto ext = path.substr(dot);
+        if (ext == ".csv" || ext == ".CSV") return origami::LogFormat::CSV;
+    }
+    return origami::LogFormat::TEXT;
+}
+
 namespace origami {
+
+// ---------------------------------------------------------------------------
+// Per-thread CSV row state
+// ---------------------------------------------------------------------------
+
+namespace {
+struct CsvThreadState {
+    bool row_in_progress = false;
+    std::vector<std::pair<std::string, std::string>> current_row;
+};
+}  // namespace
+
+static thread_local CsvThreadState tl_csv_state;
 
 // ---------------------------------------------------------------------------
 // Logger
 // ---------------------------------------------------------------------------
 
-Logger::Logger() : enabled_{false} {
-    const char* log_file_path = std::getenv("ORIGAMI_LOG_FILE");
-    
-    if (log_file_path != nullptr && log_file_path[0] != '\0') {
-        log_file_.open(log_file_path, std::ios::out | std::ios::app);
-        
+Logger::Logger() : enabled_{false}, format_{LogFormat::TEXT}, header_written_{false} {
+    const char* file_path = std::getenv("ORIGAMI_LOG_FILE");
+    if (file_path == nullptr || file_path[0] == '\0') return;
+
+    file_path_ = file_path;
+
+    format_ = format_from_path(file_path_);
+    if (format_ == LogFormat::CSV) {
+        enabled_.store(true, std::memory_order_release);
+    } else {
+        format_ = LogFormat::TEXT;
+        log_file_.open(file_path_, std::ios::out | std::ios::app);
         if (log_file_.is_open()) {
             enabled_.store(true, std::memory_order_release);
-            log(LogLevel::INFO, 
-                "Origami logger initialized, writing to: " + std::string(log_file_path),
+            log(LogLevel::INFO,
+                "Origami logger initialized, writing to: " + file_path_,
                 __FILE__, __LINE__);
         } else {
-            std::cerr << "Warning: Failed to open log file: " << log_file_path << std::endl;
+            std::cerr << "Warning: Failed to open log file: " << file_path_ << std::endl;
         }
     }
 }
 
 Logger::~Logger() {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (enabled_.load(std::memory_order_relaxed) && log_file_.is_open()) {
-        log_file_ << "[INFO ] " << "logger.cpp" << ":" << __LINE__
-                  << " - Logger shutting down" << std::endl;
-        log_file_.close();
+    if (!enabled_.load(std::memory_order_relaxed)) return;
+
+    if (format_ == LogFormat::TEXT) {
+        if (log_file_.is_open()) {
+            log_file_ << "[INFO ] " << "logger.cpp" << ":" << __LINE__
+                      << " - Logger shutting down" << std::endl;
+            log_file_.close();
+        }
+    } else {
+        if (!rows_.empty()) {
+            flush_csv_locked();
+        }
     }
 }
 
@@ -46,50 +81,76 @@ Logger& Logger::instance() {
 }
 
 void Logger::log(LogLevel level, const std::string& message, const char* file, int line) {
-    if (!enabled_.load(std::memory_order_acquire)) {
-        return;
-    }
+    if (!enabled_.load(std::memory_order_acquire)) return;
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    if (format_ == LogFormat::TEXT) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!enabled_.load(std::memory_order_relaxed) || !log_file_.is_open()) return;
 
-    if (!enabled_.load(std::memory_order_relaxed) || !log_file_.is_open()) {
-        return;
-    }
-
-    const char* filename = file;
-    for (const char* p = file; *p; p++) {
-        if (*p == '/' || *p == '\\') {
-            filename = p + 1;
+        const char* filename = file;
+        for (const char* p = file; *p; p++) {
+            if (*p == '/' || *p == '\\') {
+                filename = p + 1;
+            }
         }
-    }
 
-    log_file_ << "[" << level_to_string(level) << "] "
-              << filename << ":" << line << " - "
-              << message << std::endl;
+        log_file_ << "[" << level_to_string(level) << "] "
+                  << filename << ":" << line << " - "
+                  << message << std::endl;
+    } else if (level == LogLevel::DEBUG) {
+        process_debug_message(message);
+    }
 }
 
 void Logger::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (enabled_.load(std::memory_order_relaxed) && log_file_.is_open()) {
-        log_file_.flush();
+    if (!enabled_.load(std::memory_order_relaxed)) return;
+
+    if (format_ == LogFormat::TEXT) {
+        if (log_file_.is_open()) log_file_.flush();
+    } else {
+        if (!rows_.empty()) flush_csv_locked();
     }
 }
 
 void Logger::update_from_env() {
     std::lock_guard<std::mutex> lock(mutex_);
 
+    const char* file_path = std::getenv("ORIGAMI_LOG_FILE");
+    const std::string new_path = (file_path && file_path[0] != '\0') ? file_path : "";
+    LogFormat new_format = new_path.empty() ? LogFormat::TEXT : format_from_path(new_path);
+
+    if (enabled_.load(std::memory_order_relaxed)) {
+        if (format_ == LogFormat::CSV && !rows_.empty()) {
+            flush_csv_locked();
+        }
+    }
     if (log_file_.is_open()) {
         log_file_.close();
     }
+
+    if (new_path != file_path_ || new_format != format_) {
+        rows_.clear();
+        columns_.clear();
+        column_index_.clear();
+        header_written_ = false;
+    }
+
+    file_path_ = new_path;
+    format_ = new_format;
     enabled_.store(false, std::memory_order_release);
 
-    const char* log_file_path = std::getenv("ORIGAMI_LOG_FILE");
-    if (log_file_path != nullptr && log_file_path[0] != '\0') {
-        log_file_.open(log_file_path, std::ios::out | std::ios::app);
-        if (log_file_.is_open()) {
-            enabled_.store(true, std::memory_order_release);
+    if (new_path.empty()) return;
+
+    if (format_ == LogFormat::TEXT) {
+        log_file_.open(file_path_, std::ios::out | std::ios::app);
+        if (!log_file_.is_open()) {
+            std::cerr << "Warning: Failed to open log file: " << file_path_ << std::endl;
+            return;
         }
     }
+
+    enabled_.store(true, std::memory_order_release);
 }
 
 const char* Logger::level_to_string(LogLevel level) const {
@@ -103,60 +164,10 @@ const char* Logger::level_to_string(LogLevel level) const {
 }
 
 // ---------------------------------------------------------------------------
-// CsvLogger -- per-thread row state
+// CSV-mode methods
 // ---------------------------------------------------------------------------
 
-namespace {
-struct CsvThreadState {
-    bool row_in_progress = false;
-    std::vector<std::pair<std::string, std::string>> current_row;
-};
-}  // namespace
-
-static thread_local CsvThreadState tl_csv_state;
-
-CsvLogger::CsvLogger() : enabled_{false} {
-    const char* csv_path = std::getenv("ORIGAMI_CSV_FILE");
-    if (csv_path != nullptr && csv_path[0] != '\0') {
-        csv_path_ = csv_path;
-        enabled_.store(true, std::memory_order_release);
-    }
-}
-
-CsvLogger::~CsvLogger() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (enabled_.load(std::memory_order_relaxed) && !rows_.empty()) {
-        flush_to_file_locked();
-    }
-}
-
-CsvLogger& CsvLogger::instance() {
-    static CsvLogger logger;
-    return logger;
-}
-
-void CsvLogger::update_from_env() {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    const char* csv_path = std::getenv("ORIGAMI_CSV_FILE");
-    const std::string new_path = (csv_path && csv_path[0] != '\0') ? csv_path : "";
-
-    if (enabled_.load(std::memory_order_relaxed) && !rows_.empty()) {
-        flush_to_file_locked();
-    }
-
-    if (new_path != csv_path_) {
-        rows_.clear();
-        columns_.clear();
-        column_index_.clear();
-        header_written_ = false;
-    }
-
-    csv_path_ = new_path;
-    enabled_.store(!new_path.empty(), std::memory_order_release);
-}
-
-void CsvLogger::process_debug_message(const std::string& message) {
+void Logger::process_debug_message(const std::string& message) {
     if (!enabled_.load(std::memory_order_acquire)) return;
 
     static constexpr const char* BEGIN_MARKER = "======== Origami Debug Info ========";
@@ -179,18 +190,18 @@ void CsvLogger::process_debug_message(const std::string& message) {
     }
 }
 
-void CsvLogger::begin_row() {
+void Logger::begin_row() {
     tl_csv_state.current_row.clear();
     tl_csv_state.row_in_progress = true;
 }
 
-void CsvLogger::record(const std::string& key, const std::string& value) {
+void Logger::record(const std::string& key, const std::string& value) {
     if (tl_csv_state.row_in_progress) {
         tl_csv_state.current_row.emplace_back(key, value);
     }
 }
 
-void CsvLogger::end_row() {
+void Logger::end_row() {
     if (!tl_csv_state.row_in_progress) return;
     tl_csv_state.row_in_progress = false;
 
@@ -212,7 +223,7 @@ void CsvLogger::end_row() {
     tl_csv_state.current_row.clear();
 }
 
-std::string CsvLogger::escape_csv(const std::string& field) {
+std::string Logger::escape_csv(const std::string& field) {
     if (field.find_first_of(",\"\n\r") == std::string::npos) {
         return field;
     }
@@ -227,17 +238,17 @@ std::string CsvLogger::escape_csv(const std::string& field) {
     return escaped;
 }
 
-void CsvLogger::flush_to_file_locked() {
+void Logger::flush_csv_locked() {
     if (rows_.empty()) return;
 
-    bool file_exists = std::ifstream(csv_path_).good();
+    bool file_exists = std::ifstream(file_path_).good();
     bool need_header = !file_exists || !header_written_;
 
-    std::ofstream file(csv_path_,
+    std::ofstream file(file_path_,
                        need_header ? (std::ios::out | std::ios::trunc)
                                    : (std::ios::out | std::ios::app));
     if (!file.is_open()) {
-        std::cerr << "Warning: Failed to open CSV file: " << csv_path_ << std::endl;
+        std::cerr << "Warning: Failed to open CSV file: " << file_path_ << std::endl;
         return;
     }
 
