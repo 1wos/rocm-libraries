@@ -22,6 +22,42 @@ TYPED_TEST_SUITE(TEST_SUITE_NAME, KernelTypesCompAsync);
 #undef TEST_SUITE_NAME
 
 template <typename T>
+class TestCkTileGemmPipelineCompAsyncXorSwizzle
+    : public TestCkTileGemmPipeline<T, TestCkTileGemmPipelineCompAsyncXorSwizzle<T>>
+{
+    public:
+    static constexpr bool check_data_type() { return true; }
+};
+
+TYPED_TEST_SUITE(TestCkTileGemmPipelineCompAsyncXorSwizzle, KernelTypesCompAsyncXorSwizzle);
+TYPED_TEST(TestCkTileGemmPipelineCompAsyncXorSwizzle, QuickTest)
+{
+    constexpr int M = 1024;
+    constexpr int N = 1024;
+    constexpr int K = 1024;
+
+    this->Run(M, N, K);
+}
+
+template <typename T>
+class TestCkTileGemmPipelineCompAsyncNoXorSwizzle
+    : public TestCkTileGemmPipeline<T, TestCkTileGemmPipelineCompAsyncNoXorSwizzle<T>>
+{
+    public:
+    static constexpr bool check_data_type() { return true; }
+};
+
+TYPED_TEST_SUITE(TestCkTileGemmPipelineCompAsyncNoXorSwizzle, KernelTypesCompAsyncNoXorSwizzle);
+TYPED_TEST(TestCkTileGemmPipelineCompAsyncNoXorSwizzle, QuickTest)
+{
+    constexpr int M = 1024;
+    constexpr int N = 1024;
+    constexpr int K = 1024;
+
+    this->Run(M, N, K);
+}
+
+template <typename T>
 class TestCkTileGemmPipelineCompAsync16x16x128
     : public TestCkTileGemmPipeline<T, TestCkTileGemmPipelineCompAsync16x16x128<T>>
 {

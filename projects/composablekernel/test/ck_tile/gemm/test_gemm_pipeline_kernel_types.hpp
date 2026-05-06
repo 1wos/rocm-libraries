@@ -271,6 +271,12 @@ using KernelTypesCompAsync = ::testing::Types<CompAsyncConfig<Row, Row, Row, F16
                                               CompAsyncConfig<Col, Row, Row, F8>,
                                               CompAsyncConfig<Col, Col, Row, F8>>;
 
+using KernelTypesCompAsyncXorSwizzle =
+    ::testing::Types<CompAsyncConfig<Row, Col, Row, F8>, CompAsyncConfig<Row, Col, Row, BF8>>;
+
+using KernelTypesCompAsyncNoXorSwizzle =
+    ::testing::Types<CompAsyncConfig<Row, Col, Row, F16>, CompAsyncConfig<Col, Row, Row, F8>>;
+
 using KernelTypesCompAsync16x16x128 = ::testing::Types<CompAsyncConfig16x16x128<Row, Col, Row, F4>,
                                                        CompAsyncConfig16x16x128<Row, Col, Row, F8>>;
 
