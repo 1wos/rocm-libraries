@@ -18,13 +18,18 @@ and the dispatcher's runtime-registry model:
 import argparse
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Iterable, Union
 
+# Ensure parent (codegen/) is on path for codegen_common and sibling modules
+_CODEGEN_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_CODEGEN_DIR))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from codegen_common import parallel_generate
-from fmha_profiles import profile_allows
-from fmha_rules import load_arch_specs, validate_config
-from fmha_symbol_map import (
+from specs import load_arch_specs, profile_allows, validate_config, ARCH_METADATA, _GLOBAL_RULES
+from symbol_map import (
     ARCH_PREPROC_MAP,
     ARCH_TAG_MAP,
     BIAS_TO_CPP,

@@ -1281,7 +1281,7 @@ def setup_fmha_dispatcher(
         config_json_str = config.to_codegen_json()
     gen_cmd = [
         sys.executable,
-        str(codegen_dir / "generate_fmha_fallback.py"),
+        str(codegen_dir / "fmha" / "generate_fallback.py"),
         "--output-dir",
         str(output_dir),
         "--gpu-target",
@@ -1461,7 +1461,7 @@ def setup_multiple_fmha_dispatchers(
             rc = subprocess.call(
                 [
                     sys.executable,
-                    str(codegen_dir / "generate_fmha_fallback.py"),
+                    str(codegen_dir / "fmha" / "generate_fallback.py"),
                     "--output-dir",
                     str(out),
                     "--gpu-target",

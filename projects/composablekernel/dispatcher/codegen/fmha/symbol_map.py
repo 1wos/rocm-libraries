@@ -5,13 +5,12 @@
 
 import json
 import hashlib
-from pathlib import Path
-
-_ARCH_SPECS_PATH = Path(__file__).with_name("fmha_arch_specs.json")
-_ARCH_SPECS = json.loads(_ARCH_SPECS_PATH.read_text())
-
 ARCH_TAG_MAP = {
-    arch: spec["arch_tag"] for arch, spec in _ARCH_SPECS["architectures"].items()
+    "gfx90a": "ck_tile::gfx9_t",
+    "gfx942": "ck_tile::gfx9_t",
+    "gfx950": "ck_tile::gfx9_t",
+    "gfx1100": "ck_tile::gfx11_t",
+    "gfx1201": "ck_tile::gfx12_t",
 }
 
 ARCH_PREPROC_MAP = {
