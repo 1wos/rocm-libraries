@@ -58,9 +58,9 @@ constexpr TargetProperties properties(GpuTarget target)
     case GpuTarget::gfx1102: return {32, ArchFamily::RDNA};
     case GpuTarget::gfx1150: return {32, ArchFamily::RDNA};
     case GpuTarget::gfx1151: return {32, ArchFamily::RDNA};
-    case GpuTarget::_count:
-    default: throw "invalid GpuTarget in properties";
+    case GpuTarget::_count: break;
     }
+    throw "invalid GpuTarget in properties";
 }
 
 /// True if the target uses CDNA architecture (MFMA instructions, wave64).
