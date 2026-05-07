@@ -79,8 +79,6 @@ public:
 protected:
     void runGraphTest() override
     {
-        SKIP_IF_WINDOWS();
-
         const auto& testCase = this->GetParam();
         const auto& [layout, convTestCase] = testCase;
 
@@ -88,6 +86,8 @@ protected:
 
         this->registerValidator(outputs.y, this->getTolerance(graphObj, outputs.y));
 
+        this->setTestCaseLayout(layout.name);
+        this->setTestCaseNote(convTestCase.note);
         this->verifyGraph(graphObj, convTestCase.seed);
     }
 };

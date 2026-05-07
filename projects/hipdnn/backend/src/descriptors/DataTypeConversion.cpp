@@ -6,9 +6,9 @@
 namespace hipdnn_backend
 {
 
-hipdnn_data_sdk::data_objects::DataType toSdkDataType(hipdnnDataType_t type)
+hipdnn_flatbuffers_sdk::data_objects::DataType toSdkDataType(hipdnnDataType_t type)
 {
-    using hipdnn_data_sdk::data_objects::DataType;
+    using hipdnn_flatbuffers_sdk::data_objects::DataType;
 
     switch(type)
     {
@@ -42,14 +42,16 @@ hipdnn_data_sdk::data_objects::DataType toSdkDataType(hipdnnDataType_t type)
         return DataType::FP6_E3M2;
     case HIPDNN_DATA_INT64:
         return DataType::INT64;
+    case HIPDNN_DATA_BOOLEAN:
+        return DataType::BOOLEAN;
     default:
         throw HipdnnException(HIPDNN_STATUS_BAD_PARAM, "Unsupported hipdnnDataType_t value");
     }
 }
 
-hipdnnDataType_t fromSdkDataType(hipdnn_data_sdk::data_objects::DataType type)
+hipdnnDataType_t fromSdkDataType(hipdnn_flatbuffers_sdk::data_objects::DataType type)
 {
-    using hipdnn_data_sdk::data_objects::DataType;
+    using hipdnn_flatbuffers_sdk::data_objects::DataType;
 
     switch(type)
     {
@@ -83,14 +85,16 @@ hipdnnDataType_t fromSdkDataType(hipdnn_data_sdk::data_objects::DataType type)
         return HIPDNN_DATA_FP6_E3M2_EXT;
     case DataType::INT64:
         return HIPDNN_DATA_INT64;
+    case DataType::BOOLEAN:
+        return HIPDNN_DATA_BOOLEAN;
     default:
         throw HipdnnException(HIPDNN_STATUS_BAD_PARAM, "Unsupported SDK DataType");
     }
 }
 
-int64_t getDataTypeByteSize(hipdnn_data_sdk::data_objects::DataType type)
+int64_t getDataTypeByteSize(hipdnn_flatbuffers_sdk::data_objects::DataType type)
 {
-    using hipdnn_data_sdk::data_objects::DataType;
+    using hipdnn_flatbuffers_sdk::data_objects::DataType;
     switch(type)
     {
     case DataType::FLOAT:
@@ -106,6 +110,7 @@ int64_t getDataTypeByteSize(hipdnn_data_sdk::data_objects::DataType type)
     case DataType::INT8:
     case DataType::FP8_E4M3:
     case DataType::FP8_E5M2:
+    case DataType::BOOLEAN:
         return 1;
     case DataType::INT64:
         return 8;
@@ -114,9 +119,9 @@ int64_t getDataTypeByteSize(hipdnn_data_sdk::data_objects::DataType type)
     }
 }
 
-hipdnn_data_sdk::data_objects::ConvMode toSdkConvMode(hipdnnConvolutionMode_t mode)
+hipdnn_flatbuffers_sdk::data_objects::ConvMode toSdkConvMode(hipdnnConvolutionMode_t mode)
 {
-    using hipdnn_data_sdk::data_objects::ConvMode;
+    using hipdnn_flatbuffers_sdk::data_objects::ConvMode;
 
     switch(mode)
     {
@@ -129,9 +134,9 @@ hipdnn_data_sdk::data_objects::ConvMode toSdkConvMode(hipdnnConvolutionMode_t mo
     }
 }
 
-hipdnnConvolutionMode_t fromSdkConvMode(hipdnn_data_sdk::data_objects::ConvMode mode)
+hipdnnConvolutionMode_t fromSdkConvMode(hipdnn_flatbuffers_sdk::data_objects::ConvMode mode)
 {
-    using hipdnn_data_sdk::data_objects::ConvMode;
+    using hipdnn_flatbuffers_sdk::data_objects::ConvMode;
 
     switch(mode)
     {
@@ -144,9 +149,9 @@ hipdnnConvolutionMode_t fromSdkConvMode(hipdnn_data_sdk::data_objects::ConvMode 
     }
 }
 
-hipdnn_data_sdk::data_objects::PointwiseMode toSdkPointwiseMode(hipdnnPointwiseMode_t mode)
+hipdnn_flatbuffers_sdk::data_objects::PointwiseMode toSdkPointwiseMode(hipdnnPointwiseMode_t mode)
 {
-    using hipdnn_data_sdk::data_objects::PointwiseMode;
+    using hipdnn_flatbuffers_sdk::data_objects::PointwiseMode;
 
     switch(mode)
     {
@@ -249,9 +254,9 @@ hipdnn_data_sdk::data_objects::PointwiseMode toSdkPointwiseMode(hipdnnPointwiseM
     }
 }
 
-hipdnnPointwiseMode_t fromSdkPointwiseMode(hipdnn_data_sdk::data_objects::PointwiseMode mode)
+hipdnnPointwiseMode_t fromSdkPointwiseMode(hipdnn_flatbuffers_sdk::data_objects::PointwiseMode mode)
 {
-    using hipdnn_data_sdk::data_objects::PointwiseMode;
+    using hipdnn_flatbuffers_sdk::data_objects::PointwiseMode;
 
     switch(mode)
     {
@@ -354,10 +359,10 @@ hipdnnPointwiseMode_t fromSdkPointwiseMode(hipdnn_data_sdk::data_objects::Pointw
     }
 }
 
-hipdnn_data_sdk::data_objects::DiagonalAlignment
+hipdnn_flatbuffers_sdk::data_objects::DiagonalAlignment
     toSdkDiagonalAlignment(hipdnnDiagonalAlignment_t mode)
 {
-    using hipdnn_data_sdk::data_objects::DiagonalAlignment;
+    using hipdnn_flatbuffers_sdk::data_objects::DiagonalAlignment;
 
     switch(mode)
     {
@@ -372,9 +377,9 @@ hipdnn_data_sdk::data_objects::DiagonalAlignment
 }
 
 hipdnnDiagonalAlignment_t
-    fromSdkDiagonalAlignment(hipdnn_data_sdk::data_objects::DiagonalAlignment mode)
+    fromSdkDiagonalAlignment(hipdnn_flatbuffers_sdk::data_objects::DiagonalAlignment mode)
 {
-    using hipdnn_data_sdk::data_objects::DiagonalAlignment;
+    using hipdnn_flatbuffers_sdk::data_objects::DiagonalAlignment;
 
     switch(mode)
     {
@@ -387,10 +392,10 @@ hipdnnDiagonalAlignment_t
     }
 }
 
-hipdnn_data_sdk::data_objects::AttentionImplementation
+hipdnn_flatbuffers_sdk::data_objects::AttentionImplementation
     toSdkAttentionImplementation(hipdnnAttentionImplementation_t mode)
 {
-    using hipdnn_data_sdk::data_objects::AttentionImplementation;
+    using hipdnn_flatbuffers_sdk::data_objects::AttentionImplementation;
 
     switch(mode)
     {
@@ -406,10 +411,10 @@ hipdnn_data_sdk::data_objects::AttentionImplementation
     }
 }
 
-hipdnnAttentionImplementation_t
-    fromSdkAttentionImplementation(hipdnn_data_sdk::data_objects::AttentionImplementation mode)
+hipdnnAttentionImplementation_t fromSdkAttentionImplementation(
+    hipdnn_flatbuffers_sdk::data_objects::AttentionImplementation mode)
 {
-    using hipdnn_data_sdk::data_objects::AttentionImplementation;
+    using hipdnn_flatbuffers_sdk::data_objects::AttentionImplementation;
 
     switch(mode)
     {
@@ -425,9 +430,9 @@ hipdnnAttentionImplementation_t
     }
 }
 
-hipdnn_data_sdk::data_objects::NormFwdPhase toSdkNormFwdPhase(hipdnnNormFwdPhase_t phase)
+hipdnn_flatbuffers_sdk::data_objects::NormFwdPhase toSdkNormFwdPhase(hipdnnNormFwdPhase_t phase)
 {
-    using hipdnn_data_sdk::data_objects::NormFwdPhase;
+    using hipdnn_flatbuffers_sdk::data_objects::NormFwdPhase;
 
     switch(phase)
     {
@@ -440,9 +445,9 @@ hipdnn_data_sdk::data_objects::NormFwdPhase toSdkNormFwdPhase(hipdnnNormFwdPhase
     }
 }
 
-hipdnnNormFwdPhase_t fromSdkNormFwdPhase(hipdnn_data_sdk::data_objects::NormFwdPhase phase)
+hipdnnNormFwdPhase_t fromSdkNormFwdPhase(hipdnn_flatbuffers_sdk::data_objects::NormFwdPhase phase)
 {
-    using hipdnn_data_sdk::data_objects::NormFwdPhase;
+    using hipdnn_flatbuffers_sdk::data_objects::NormFwdPhase;
 
     switch(phase)
     {
@@ -455,9 +460,9 @@ hipdnnNormFwdPhase_t fromSdkNormFwdPhase(hipdnn_data_sdk::data_objects::NormFwdP
     }
 }
 
-hipdnn_data_sdk::data_objects::ReductionMode toSdkReductionMode(hipdnnReduceTensorOp_t mode)
+hipdnn_flatbuffers_sdk::data_objects::ReductionMode toSdkReductionMode(hipdnnReduceTensorOp_t mode)
 {
-    using hipdnn_data_sdk::data_objects::ReductionMode;
+    using hipdnn_flatbuffers_sdk::data_objects::ReductionMode;
 
     switch(mode)
     {
@@ -484,9 +489,10 @@ hipdnn_data_sdk::data_objects::ReductionMode toSdkReductionMode(hipdnnReduceTens
     }
 }
 
-hipdnnReduceTensorOp_t fromSdkReductionMode(hipdnn_data_sdk::data_objects::ReductionMode mode)
+hipdnnReduceTensorOp_t
+    fromSdkReductionMode(hipdnn_flatbuffers_sdk::data_objects::ReductionMode mode)
 {
-    using hipdnn_data_sdk::data_objects::ReductionMode;
+    using hipdnn_flatbuffers_sdk::data_objects::ReductionMode;
 
     switch(mode)
     {
