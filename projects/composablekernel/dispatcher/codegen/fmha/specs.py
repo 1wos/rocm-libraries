@@ -715,8 +715,8 @@ def validate_config(config: dict, arch_specs: Optional[dict] = None) -> "Validat
                     f"NumMfmaInsts={num_mfma} must be divisible by 8 for qr/h256/CDNA"
                 )
 
-    if alg["block_per_cu"] <= 0:
-        result.add_error("block_per_cu must be positive")
+    if alg["block_per_cu"] <= 0 and alg["block_per_cu"] != -1:
+        result.add_error("block_per_cu must be positive or -1 (auto)")
     if alg["num_wave_groups"] <= 0:
         result.add_error("num_wave_groups must be positive")
 

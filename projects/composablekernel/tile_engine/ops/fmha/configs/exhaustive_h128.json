@@ -1,0 +1,15 @@
+{
+  "variant": "fwd",
+  "trait_config": {
+    "data_type": {"values": ["bf16"]},
+    "pipeline": {"values": ["qr", "qr_async", "qr_async_trload", "qr_async_trload_v3"]},
+    "mask": {"values": ["no"]},
+    "bias": {"values": ["no"]},
+    "mode": {"values": ["batch"]},
+    "lse": {"values": [false]},
+    "dropout": {"values": [false]},
+    "logits": {"values": [false]},
+    "sink": {"values": [false]},
+    "block_per_cu": {"values": [1, 2, 3, 4, 5, 6, 7, 8]}
+  }
+}

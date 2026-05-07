@@ -763,6 +763,13 @@ def expand_sweep(config_path: str, arch: str, receipt: int = 0) -> List[FmhaKern
     allowed_dropout = _allow("dropout")
     allowed_logits = _allow("logits")
     allowed_sink = _allow("sink")
+    allowed_paged_kv = _allow("paged_kv")
+
+    # block_per_cu: int or list of ints to sweep
+    bpc_entry = trait_cfg.get("block_per_cu", {})
+    block_per_cu_values = bpc_entry.get("values", [-1])
+    if isinstance(block_per_cu_values, int):
+        block_per_cu_values = [block_per_cu_values]
 
     # Intersect with arch support
     arch_dtypes = set(ARCH_DTYPES.get(arch, ARCH_DTYPES.get("gfx950", [])))
@@ -771,9 +778,9 @@ def expand_sweep(config_path: str, arch: str, receipt: int = 0) -> List[FmhaKern
     configs: List[FmhaKernelConfig] = []
 
     if variant == "fwd":
-        configs = _expand_fwd(arch, dtypes, receipt, allowed_pipes, allowed_masks, allowed_biases, allowed_modes, allowed_lse, allowed_dropout, allowed_logits, allowed_sink)
+        configs = _expand_fwd(arch, dtypes, receipt, allowed_pipes, allowed_masks, allowed_biases, allowed_modes, allowed_lse, allowed_dropout, allowed_logits, allowed_sink, block_per_cu_values)
     elif variant == "splitkv":
-        configs = _expand_splitkv(arch, dtypes, receipt, allowed_masks, allowed_biases, allowed_modes)
+        configs = _expand_splitkv(arch, dtypes, receipt, allowed_masks, allowed_biases, allowed_modes, allowed_logits, allowed_sink, allowed_paged_kv)
     elif variant == "pagedkv":
         configs = _expand_pagedkv(arch, dtypes, receipt, allowed_masks, allowed_biases, allowed_modes)
     elif variant == "appendkv":
@@ -793,7 +800,9 @@ def expand_sweep(config_path: str, arch: str, receipt: int = 0) -> List[FmhaKern
     return unique
 
 
-def _expand_fwd(arch, dtypes, receipt, allowed_pipes, allowed_masks, allowed_biases, allowed_modes, allowed_lse, allowed_dropout, allowed_logits, allowed_sink):
+def _expand_fwd(arch, dtypes, receipt, allowed_pipes, allowed_masks, allowed_biases, allowed_modes, allowed_lse, allowed_dropout, allowed_logits, allowed_sink, block_per_cu_values=None):
+    if block_per_cu_values is None:
+        block_per_cu_values = [-1]
     configs = []
     for dtype in dtypes:
         for hq, hv in SUPPORTED_HDIMS.get(dtype, []):
@@ -832,25 +841,27 @@ def _expand_fwd(arch, dtypes, receipt, allowed_pipes, allowed_masks, allowed_bia
                         t6 = (tc.bm0, tc.bn0, tc.bk0, tc.bn1, tc.bk1, tc.bk0max)
                         if not tile_compatible(arch, dtype, hq, hv, spec.tag, t6):
                             continue
-                        configs.append(FmhaKernelConfig(
-                            family="fwd", data_type=dtype, mode=mode,
-                            hdim_q=hq, hdim_v=hv, pipeline=spec.tag,
-                            tile_m0=tc.bm0, tile_n0=tc.bn0, tile_k0=tc.bk0,
-                            tile_n1=tc.bn1, tile_k1=tc.bk1, tile_k0max=tc.bk0max,
-                            wave_m0=tc.rm0, wave_n0=1, wave_k0=1,
-                            wave_m1=tc.rm0, wave_n1=1, wave_k1=1,
-                            warp_m0=tc.wm0, warp_n0=tc.wn0, warp_k0=tc.wk0,
-                            warp_m1=tc.wm1, warp_n1=tc.wn1, warp_k1=tc.wk1,
-                            pad_s=_pad_val(spec.spad), pad_sk=_pad_val(spec.skpad),
-                            pad_d=_pad_val(spec.dpad), pad_dv=_pad_val(spec.dvpad),
-                            mask=mm, bias=mb, lse=lv, dropout=dv, logits=lgv,
-                            sink=sv, skip_min_seqlen_q=skv, qscale=spec.qscale,
-                            gfx_arch=arch,
-                        ))
+                        for bpc in block_per_cu_values:
+                            configs.append(FmhaKernelConfig(
+                                family="fwd", data_type=dtype, mode=mode,
+                                hdim_q=hq, hdim_v=hv, pipeline=spec.tag,
+                                tile_m0=tc.bm0, tile_n0=tc.bn0, tile_k0=tc.bk0,
+                                tile_n1=tc.bn1, tile_k1=tc.bk1, tile_k0max=tc.bk0max,
+                                wave_m0=tc.rm0, wave_n0=1, wave_k0=1,
+                                wave_m1=tc.rm0, wave_n1=1, wave_k1=1,
+                                warp_m0=tc.wm0, warp_n0=tc.wn0, warp_k0=tc.wk0,
+                                warp_m1=tc.wm1, warp_n1=tc.wn1, warp_k1=tc.wk1,
+                                pad_s=_pad_val(spec.spad), pad_sk=_pad_val(spec.skpad),
+                                pad_d=_pad_val(spec.dpad), pad_dv=_pad_val(spec.dvpad),
+                                mask=mm, bias=mb, lse=lv, dropout=dv, logits=lgv,
+                                sink=sv, skip_min_seqlen_q=skv, qscale=spec.qscale,
+                                block_per_cu=bpc,
+                                gfx_arch=arch,
+                            ))
     return configs
 
 
-def _expand_splitkv(arch, dtypes, receipt, allowed_masks, allowed_biases, allowed_modes):
+def _expand_splitkv(arch, dtypes, receipt, allowed_masks, allowed_biases, allowed_modes, allowed_logits=None, allowed_sink=None, allowed_paged_kv=None):
     configs = []
     for dtype in dtypes:
         for hq, hv in SUPPORTED_HDIMS.get(dtype, []):
@@ -869,6 +880,15 @@ def _expand_splitkv(arch, dtypes, receipt, allowed_masks, allowed_biases, allowe
                             continue
                         if allowed_biases is not None and mb not in allowed_biases:
                             continue
+                        lgv = (spec.logits == "t")
+                        sv = (spec.sink == "t")
+                        pkv = (spec.pagedkv == "t")
+                        if allowed_logits is not None and lgv not in allowed_logits:
+                            continue
+                        if allowed_sink is not None and sv not in allowed_sink:
+                            continue
+                        if allowed_paged_kv is not None and pkv not in allowed_paged_kv:
+                            continue
                         configs.append(FmhaKernelConfig(
                             family="fwd_splitkv", data_type=dtype, mode=mode,
                             hdim_q=hq, hdim_v=hv, pipeline=spec.tag,
@@ -880,8 +900,8 @@ def _expand_splitkv(arch, dtypes, receipt, allowed_masks, allowed_biases, allowe
                             warp_m1=tc.wm1, warp_n1=tc.wn1, warp_k1=tc.wk1,
                             pad_s=_pad_val(spec.spad), pad_sk=_pad_val(spec.skpad),
                             pad_d=_pad_val(spec.dpad), pad_dv=_pad_val(spec.dvpad),
-                            mask=mm, bias=mb, lse=True, logits=(spec.logits == "t"),
-                            sink=(spec.sink == "t"), paged_kv=(spec.pagedkv == "t"),
+                            mask=mm, bias=mb, lse=True, logits=lgv,
+                            sink=sv, paged_kv=pkv,
                             gfx_arch=arch,
                         ))
     # Combine kernels

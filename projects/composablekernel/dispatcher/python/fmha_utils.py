@@ -163,7 +163,7 @@ class FmhaKernelConfig:
 
     # -- Algorithm: pipeline --
     pipeline: str = "qr_async"
-    block_per_cu: int = 1
+    block_per_cu: int = -1
     num_wave_groups: int = 1
 
     # -- Signature: features --
@@ -247,10 +247,15 @@ class FmhaKernelConfig:
             self.pipeline,
             f"t{self.tile_m0}x{self.tile_n0}x{self.tile_k0}x{self.tile_n1}x{self.tile_k1}x{self.tile_k0max}"
             + (f".{self.tile_tag}" if self.tile_tag else ""),
+        ]
+        # Include warp class in name when non-default (avoids collisions)
+        if (self.warp_m0, self.warp_n0, self.warp_k0) != (32, 32, 16):
+            parts.append(f"w{self.warp_m0}x{self.warp_n0}x{self.warp_k0}")
+        parts.extend([
             f"pad{s}{k}{d}{v}",
             f"mask={self.mask}",
             f"bias={self.bias}",
-        ]
+        ])
         if self.lse:
             parts.append("lse=1")
         if self.dropout:
@@ -279,6 +284,8 @@ class FmhaKernelConfig:
             parts.append("dbias=1")
         if self.dropout_variant and self.dropout_variant != "no":
             parts.append(f"drv={self.dropout_variant}")
+        if self.block_per_cu != -1:
+            parts.append(f"bpc={self.block_per_cu}")
         return "_".join(parts)
 
     def to_codegen_json(self) -> str:
@@ -332,15 +339,30 @@ class FmhaKernelConfig:
 # =============================================================================
 
 
+def _float32_to_bf16(arr: np.ndarray) -> np.ndarray:
+    """Convert float32 array to bf16 stored as uint16 (truncate lower 16 bits)."""
+    return arr.astype(np.float32).view(np.uint32).__rshift__(16).astype(np.uint16)
+
+
+def _bf16_to_float32(arr: np.ndarray) -> np.ndarray:
+    """Convert bf16 (uint16) array back to float32."""
+    return (arr.astype(np.uint32) << 16).view(np.float32)
+
+
 def cpu_attention_fwd(
-    Q: np.ndarray, K: np.ndarray, V: np.ndarray, scale: float
+    Q: np.ndarray,
+    K: np.ndarray,
+    V: np.ndarray,
+    scale: float,
+    mask_type: int = 0,
 ) -> np.ndarray:
-    """CPU reference: scaled dot-product attention (supports GQA).
+    """CPU reference: scaled dot-product attention (supports GQA and causal mask).
 
     Args:
         Q: [batch, nhead_q, seqlen_q, hdim_q]  float32
         K: [batch, nhead_k, seqlen_k, hdim_q]  float32
         V: [batch, nhead_k, seqlen_k, hdim_v]  float32
+        mask_type: 0=no mask, 1=causal top-left, 2=causal bottom-right
 
     Returns:
         O: [batch, nhead_q, seqlen_q, hdim_v]  float32
@@ -352,6 +374,15 @@ def cpu_attention_fwd(
         K = np.repeat(K, ratio, axis=1)
         V = np.repeat(V, ratio, axis=1)
     S = np.matmul(Q, K.transpose(0, 1, 3, 2)) * scale
+    if mask_type in (1, 2):
+        sq, sk = S.shape[-2], S.shape[-1]
+        row = np.arange(sq).reshape(sq, 1)
+        col = np.arange(sk).reshape(1, sk)
+        if mask_type == 1:  # top-left causal
+            causal_mask = col <= row
+        else:  # bottom-right causal
+            causal_mask = col <= (row + sk - sq)
+        S = np.where(causal_mask, S, -1e9)
     S_max = S.max(axis=-1, keepdims=True)
     S_exp = np.exp(S - S_max)
     P = S_exp / S_exp.sum(axis=-1, keepdims=True)
@@ -511,11 +542,14 @@ class FmhaDispatcherLib:
             ctypes.c_char_p,
             ctypes.c_int,  # has_lse
             ctypes.c_int,  # is_group_mode
+            ctypes.c_int,  # perm
             ctypes.c_int,  # has_logits
             ctypes.c_int,  # bias_type
             ctypes.c_int,  # has_sink
             ctypes.c_int,  # paged_kv
             ctypes.c_int,  # page_block_size
+            ctypes.c_int,  # window_left
+            ctypes.c_int,  # window_right
             ctypes.POINTER(ctypes.c_float),
         ]
         lib.fmha_dispatcher_run_splitkv.restype = ctypes.c_int
@@ -777,11 +811,11 @@ class FmhaRunner:
             FmhaResult with output array, timing, TFLOPS
         """
         # Map CK dtype to numpy dtype for buffer allocation.
-        # bf16 uses fp16 as proxy (same size, different encoding handled by GPU).
+        # bf16 is stored as uint16 (upper 16 bits of float32).
         # fp8 uses uint8 (1 byte per element).
         _NP_DTYPE = {
             "fp16": np.float16,
-            "bf16": np.float16,
+            "bf16": np.uint16,
             "fp32": np.float32,
             "fp8bf16": np.uint8,
             "fp8fp32": np.uint8,
@@ -789,7 +823,7 @@ class FmhaRunner:
         }
         _NP_OUT_DTYPE = {
             "fp16": np.float16,
-            "bf16": np.float16,
+            "bf16": np.uint16,
             "fp32": np.float32,
             "fp8bf16": np.float16,
             "fp8fp32": np.float32,
@@ -797,9 +831,14 @@ class FmhaRunner:
         }
         in_dt = _NP_DTYPE.get(data_type, np.float16)
         out_dt = _NP_OUT_DTYPE.get(data_type, np.float16)
-        Q_c = np.ascontiguousarray(Q.astype(in_dt))
-        K_c = np.ascontiguousarray(K.astype(in_dt))
-        V_c = np.ascontiguousarray(V.astype(in_dt))
+        if data_type == "bf16":
+            Q_c = _float32_to_bf16(np.ascontiguousarray(Q.astype(np.float32)))
+            K_c = _float32_to_bf16(np.ascontiguousarray(K.astype(np.float32)))
+            V_c = _float32_to_bf16(np.ascontiguousarray(V.astype(np.float32)))
+        else:
+            Q_c = np.ascontiguousarray(Q.astype(in_dt))
+            K_c = np.ascontiguousarray(K.astype(in_dt))
+            V_c = np.ascontiguousarray(V.astype(in_dt))
         O_c = np.zeros(prob.o_shape(), dtype=out_dt)
 
         d_q, d_k, d_v, d_o = (ctypes.c_void_p() for _ in range(4))
@@ -851,11 +890,14 @@ class FmhaRunner:
                     data_type.encode(),
                     has_lse,
                     is_group_mode,
+                    perm,
                     has_logits,
                     bias_type,
                     has_sink,
                     paged_kv,
                     page_size,
+                    window_left,
+                    window_right,
                     ctypes.byref(time_ms),
                 )
             elif api_family == "pagedkv":
@@ -968,6 +1010,10 @@ class FmhaRunner:
                 return FmhaResult(success=False, error=f"Kernel failed (rc={rc})")
 
             self._hip.hipMemcpy(O_c.ctypes.data, d_o, O_c.nbytes, self.HIP_MEMCPY_D2H)
+
+            # Convert bf16 output (uint16) back to float32 for comparison
+            if data_type == "bf16":
+                O_c = _bf16_to_float32(O_c)
 
             # appendkv is a memory op (KV cache copy), not compute -- no TFLOPS
             ops = 0 if api_family == "appendkv" else prob.num_ops
@@ -1135,20 +1181,33 @@ def fmha_compile_flags(arch: str, hipcc: str = "", family: str = "") -> List[str
         "-c",
         "-fPIC",
         "-O3",
+        "-DNDEBUG",
         f"--offload-arch={arch}",
         "-std=c++17",
         f"-I{root.parent / 'include'}",
         f"-I{root / 'include'}",
         f"-I{root.parent}",
-        "-mllvm",
-        "-enable-noalias-to-md-conversion=0",
         "-Wno-undefined-func-template",
         "-Wno-float-equal",
-        "--offload-compress",
         "-fgpu-flush-denormals-to-zero",
+        "-fno-offload-uniform-block",
+        "-mllvm",
+        "--lsr-drop-solution=1",
+        "-mllvm",
+        "-enable-post-misched=0",
+        "-mllvm",
+        "-amdgpu-early-inline-all=true",
+        "-mllvm",
+        "-amdgpu-function-calls=false",
     ]
     if arch.startswith("gfx9"):
         flags.append("-DCK_TILE_FMHA_FWD_FAST_EXP2=1")
+        flags.append("-DCK_TILE_USE_OCP_FP8")
+        flags.append("-DCK_GFX950_SUPPORT")
+        flags.append("-DCK_USE_GFX950")
+        flags.append("-DCK_USE_GFX94")
+        flags.append("-DCK_USE_XDL")
+        flags.append("-DCK_TILE_USE_WMMA=0")
     else:
         flags.append("-DCK_TILE_FMHA_FWD_FAST_EXP2=0")
 
@@ -1162,6 +1221,42 @@ def fmha_compile_flags(arch: str, hipcc: str = "", family: str = "") -> List[str
         flags.append("-DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3")
 
     return flags
+
+
+def _make_splitkv_combine_config(splitkv_cfg: FmhaKernelConfig) -> FmhaKernelConfig:
+    """Create a matching fwd_splitkv_combine config for a fwd_splitkv config.
+
+    The combine kernel merges partial results from the split stage into the
+    final output.  Must be in the same .so as the split kernel for the
+    2-stage splitkv pipeline (same pattern as bwd dot_do_o + dq_dk_dv).
+    """
+    import copy
+
+    comb = copy.copy(splitkv_cfg)
+    comb.family = "fwd_splitkv_combine"
+    comb.pipeline = "splitkv_combine"
+    hv = splitkv_cfg.hdim_v
+    comb.hdim_q = hv
+    comb.hdim_v = hv
+    comb.tile_m0 = 32
+    comb.tile_n0 = hv
+    comb.tile_k0 = 32
+    comb.tile_n1 = 32
+    comb.tile_k1 = 0
+    comb.tile_k0max = 0
+    comb.pad_s = 1 if splitkv_cfg.mode == "group" else 0
+    comb.pad_sk = 1
+    comb.pad_d = 1
+    comb.pad_dv = 1
+    comb.lse = True
+    # Combine doesn't use mask/bias/etc., but the dispatcher's supports() check
+    # matches the combine kernel's signature against the problem traits.
+    # Keep them from the split config so the signatures match.
+    comb.dropout = False
+    comb.skip_min_seqlen_q = False
+    comb.qscale = "no"
+    comb.rope = "none"
+    return comb
 
 
 def _make_bwd_dot_do_o_config(dq_cfg: FmhaKernelConfig) -> FmhaKernelConfig:
@@ -1403,6 +1498,7 @@ def setup_multiple_fmha_dispatchers(
     verbose: bool = False,
     max_workers: Optional[int] = None,
     executor=None,
+    progress_callback=None,
 ) -> List[FmhaSetupResult]:
     """3-stage pipelined JIT: codegen(parallel) -> compile(parallel) -> link+load(parallel).
 
@@ -1454,6 +1550,14 @@ def setup_multiple_fmha_dispatchers(
                     json.loads(cfg.to_codegen_json()),
                 ]
             )
+        elif cfg.family == "fwd_splitkv":
+            comb = _make_splitkv_combine_config(cfg)
+            config_json_str = json.dumps(
+                [
+                    json.loads(cfg.to_codegen_json()),
+                    json.loads(comb.to_codegen_json()),
+                ]
+            )
         else:
             config_json_str = cfg.to_codegen_json()
         err_file = out / "_codegen_err.txt"
@@ -1481,7 +1585,11 @@ def setup_multiple_fmha_dispatchers(
             )
         return (cfg.name, cfg, out, ok)
 
-    codegen_results = [_codegen(cfg) for cfg in configs]
+    codegen_results = []
+    for i, cfg in enumerate(configs):
+        codegen_results.append(_codegen(cfg))
+        if progress_callback:
+            progress_callback("codegen", i + 1, len(configs))
 
     # --- Stage 2: Collect ALL compile jobs, run in one pool ---
     # Use bwd family flag to get the superset of all flags (includes BWD-specific defines)
@@ -1530,7 +1638,12 @@ def setup_multiple_fmha_dispatchers(
             _own_pool = ProcessPoolExecutor(max_workers=workers)
             _pool = _own_pool
         try:
+            done_count = 0
+            total_jobs = len(compile_jobs)
             for name, ok, err in _pool.map(_run_compile_job, compile_jobs):
+                done_count += 1
+                if progress_callback:
+                    progress_callback("compile", done_count, total_jobs)
                 if not ok:
                     failed_names.add(name)
                     if name not in results:
