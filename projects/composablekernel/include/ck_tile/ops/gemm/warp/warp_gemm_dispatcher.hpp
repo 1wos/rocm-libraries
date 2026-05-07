@@ -6,11 +6,15 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_wmma_gemm.hpp"
+#include "ck_tile/core/arch/arch.hpp"
 
 namespace ck_tile {
 
 namespace impl {
 namespace warp_gemm_dispatcher {
+
+using namespace ck_tile::core::arch;
+using namespace mma;
 
 // C++20 using enum
 static inline constexpr auto ESingle = WGAttrNumAccessEnum::Single;
@@ -28,7 +32,28 @@ template <typename AType,
           bool UseStructuredSparsity         = false,
           WGAttrNumAccessEnum AttrNumAccessA = ESingle,
           WGAttrNumAccessEnum AttrNumAccessB = AttrNumAccessA>
-struct Dispatcher;
+struct Dispatcher
+{
+    static_assert(SwizzleA == false);
+    static_assert(UseStructuredSparsity == false);
+    static_assert(AttrNumAccessA == ESingle);
+    static_assert(AttrNumAccessB == ESingle);
+
+    using Type = WaveWiseMmaPipeline<AType,    // ADataType
+                                     BType,    // BDataType
+                                     AccType,  // CDataType
+                                     MPerWave, // M
+                                     NPerWave, // N
+                                     KPerWave, // K
+                                     MmaOpFamily::DENSE,
+                                     MmaAccumPolicy::ROW_MAJOR, // Irrelevant for now because we
+                                                                // don't allow MN composition
+                                     TransposeC>;               // CTranspose
+
+    // static_assert(0);
+};
+
+#if 1 // Dispatcher specializations
 
 // clang-format off
 // fp32
@@ -60,7 +85,7 @@ template<> struct Dispatcher<tf32_t, tf32_t, float, 16, 16, 32, false, false, fa
 // ADataType, BDataType, AccDataType, MPerWave, NPerWave, KPerWave, TransposeC, SwizzleA, UseStructuredSparsity
 template<> struct Dispatcher<half_t, half_t, float, 32, 32,  8, false> { using Type = WarpGemmMfmaF16F16F32M32N32K8; };
 template<> struct Dispatcher<half_t, half_t, float, 32, 32,  8,  true>  { using Type = WarpGemmMfmaF16F16F32M32N32K8TransposedCDistribution; };
-template<> struct Dispatcher<half_t, half_t, float, 32, 32, 16, false> { using Type = WarpGemmMfmaF16F16F32M32N32K16<>; };
+// template<> struct Dispatcher<half_t, half_t, float, 32, 32, 16, false> { using Type = WarpGemmMfmaF16F16F32M32N32K16<>; }; // This one
 template<> struct Dispatcher<half_t, half_t, float, 32, 32, 16,  true>  { using Type = WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution<>; };
 template<> struct Dispatcher<half_t, half_t, float, 32, 32, 16, false, false, false, EDouble> { using Type = WarpGemmMfmaF16F16F32M32N32K16<EDouble>; };
 template<> struct Dispatcher<half_t, half_t, float, 32, 32, 16,  true, false, false, EDouble> { using Type = WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution<EDouble>; };
@@ -193,6 +218,8 @@ template<> struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 32, false> { using
 template<> struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 32,  true> { using Type = WarpGemmMfma_i32_16x16x32_i8_i8_CTransposed; };
 // WMMA cases
 template<bool TransposeC> struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 16, TransposeC, false> { using Type = WarpGemmWmma_i32_16x16x16_i8_i8<TransposeC>;};
+
+#endif
 
 // clang-format on
 } // namespace warp_gemm_dispatcher

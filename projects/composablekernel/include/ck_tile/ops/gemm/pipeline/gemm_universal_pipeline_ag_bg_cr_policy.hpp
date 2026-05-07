@@ -8,6 +8,7 @@
 #include "ck_tile/ops/gemm/block/block_universal_gemm_as_bs_cr.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck_tile {
 
@@ -890,6 +891,50 @@ struct UniversalGemmBasePolicy
 struct UniversalGemmPipelineAgBgCrPolicy
     : public UniversalGemmBasePolicy<UniversalGemmPipelineAgBgCrPolicy>
 {
+    template <typename Problem>
+    static void PrintInfo()
+    {
+        // using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
+        using WarpTile = typename Problem::BlockGemmShape::WarpTile;
+
+        constexpr index_t vector_size =
+            DS_READ_TR_SIZE() / sizeof(typename Problem::ComputeDataType);
+        constexpr index_t thread_elements = WarpTile::at(I1) * WarpTile::at(I2) / get_warp_size();
+        constexpr auto wg_attr_num_access =
+            !(is_a_load_tr<Problem> || is_b_load_tr<Problem>) ? WGAttrNumAccessEnum::Single
+            : vector_size == thread_elements                  ? WGAttrNumAccessEnum::Single
+            : vector_size * 2 == thread_elements              ? WGAttrNumAccessEnum::Double
+            : vector_size * 4 == thread_elements              ? WGAttrNumAccessEnum::Quad
+                                                              : WGAttrNumAccessEnum::Invalid;
+
+        using ADataType       = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+        using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+
+        using ATypeToUse = if_select_t<ADataType, pk_int4_t, BDataType, ADataType>;
+        using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
+                                                  std::is_same_v<BDataType, pk_fp4_t> ||
+                                                  sizeof(BDataType) < sizeof(ADataType),
+                                              ADataType,
+                                              BDataType>;
+
+        printf("Info UniversalGemmPipelineAgBgCrPolicy\n");
+        printf("Dispatcher will be called with types: %s %s %s\n",
+               ck::get_type_name<if_select_t<ComputeDataType, tf32_t, tf32_t, ATypeToUse>>(),
+               ck::get_type_name<if_select_t<ComputeDataType, tf32_t, tf32_t, BTypeToUse>>(),
+               ck::get_type_name<typename Problem::CDataType>());
+        printf("Dispatcher will be called with sizes MNK: %d %d %d\n",
+               static_cast<int>(WarpTile::at(I0)),
+               static_cast<int>(WarpTile::at(I1)),
+               static_cast<int>(WarpTile::at(I2)));
+        printf("Dispatcher will be called with extra args: transposeC %d swizzle %d sparse %d "
+               "numAccessA %d\n",
+               static_cast<int>(Problem::TransposeC),
+               static_cast<int>(false),
+               static_cast<int>(Problem::UseStructuredSparsity),
+               static_cast<int>(wg_attr_num_access));
+    }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
