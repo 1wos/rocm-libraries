@@ -271,6 +271,9 @@ using KernelTypesCompAsync = ::testing::Types<CompAsyncConfig<Row, Row, Row, F16
                                               CompAsyncConfig<Col, Row, Row, F8>,
                                               CompAsyncConfig<Col, Col, Row, F8>>;
 
+// XorSwizzle classification assumes gfx950:
+// is_a_load_tr/is_b_load_tr (ds_read_tr) are always false on other targets,
+// so UseXorSwizzle there would give a false positive result
 using KernelTypesCompAsyncXorSwizzle =
     ::testing::Types<CompAsyncConfig<Row, Col, Row, F8>, CompAsyncConfig<Row, Col, Row, BF8>>;
 

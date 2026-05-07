@@ -18,7 +18,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
     static constexpr auto ATileAccessPattern = tile_distribution_pattern::warp_raked;
     static constexpr auto BTileAccessPattern = tile_distribution_pattern::warp_raked;
 
-    // For FP8/BF8: 4, 12, 16
+    // Async copy supports 32-bit, 96-bit, or 128-bit transfers (4, 12, 16 bytes)
     template <typename DataType, index_t KPack>
     static constexpr bool IsSupportedAsyncVectorWidth =
         sizeof(DataType) * KPack == 4 || sizeof(DataType) * KPack == 12 ||
@@ -56,7 +56,8 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
 
         if constexpr(!(is_a_load_tr<Problem> || is_b_load_tr<Problem>))
         {
-            // Current XOR-swizzle
+            // Non-transpose load path uses regular ds_read,
+            // which always maps to a single warp-GEMM attribute access
             return WGAttrNumAccessEnum::Single;
         }
         else if constexpr(vector_size == thread_elements)
@@ -136,12 +137,22 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
                        make_pass_through_transform(number<M3>{}),
                        make_xor_transform(make_tuple(number<M4>{}, number<K1>{})),
                        make_pass_through_transform(number<K2>{})),
-            container_concat(generate_tuple([](auto i) { return sequence<i>{}; }, number<6>{}),
-                             make_tuple(sequence<6, 7>{}),
-                             make_tuple(sequence<8>{})),
-            container_concat(generate_tuple([](auto i) { return sequence<i>{}; }, number<6>{}),
-                             make_tuple(sequence<6, 7>{}),
-                             make_tuple(sequence<8>{})));
+            make_tuple(sequence<0>{},
+                       sequence<1>{},
+                       sequence<2>{},
+                       sequence<3>{},
+                       sequence<4>{},
+                       sequence<5>{},
+                       sequence<6, 7>{},
+                       sequence<8>{}),
+            make_tuple(sequence<0>{},
+                       sequence<1>{},
+                       sequence<2>{},
+                       sequence<3>{},
+                       sequence<4>{},
+                       sequence<5>{},
+                       sequence<6, 7>{},
+                       sequence<8>{}));
 
         constexpr auto desc_2 = transform_tensor_descriptor(
             desc_1,
