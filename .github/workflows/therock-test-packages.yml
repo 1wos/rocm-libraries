@@ -31,7 +31,7 @@ jobs:
           sparse-checkout: build_tools
           path: "prejob"
           repository: "archana-ramalingam/TheRock"
-          ref: 55595cdde626d72c08ce7bc58dfa3866daea4dae
+          ref: 7e4646c09566fbd0bcd76acfb6f4269f0b58dcf2
 
       # Checkout failure is possible on Windows, as it's the first job on a GPU test runner.
       # Post-job cleanup isn't necessary since no executables are launched in this job.
@@ -44,7 +44,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: "archana-ramalingam/TheRock"
-          ref: 55595cdde626d72c08ce7bc58dfa3866daea4dae
+          ref: 7e4646c09566fbd0bcd76acfb6f4269f0b58dcf2
 
       - name: Setting up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
