@@ -3,6 +3,10 @@
 
 Full documentation for MIOpen is available [here](https://rocm.docs.amd.com/projects/MIOpen/en/latest/)
 
+## MIOpen 3.6.0 for ROCm 7.14.0
+### Resolved Issues
+* [RNN] Fix RNN workspace tensor descriptor int overflow
+
 ## MIOpen 3.6.0 for ROCm 7.13.0
 ### Added
 * Added `MIOPEN_LOG_BUFFER_SIZE` option: when set to non-zero, dumps recent MIOpen logs to file on error.

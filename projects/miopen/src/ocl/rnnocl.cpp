@@ -1429,7 +1429,7 @@ void RNNDescriptor::RNNForwardInferencePacked(const Handle& handle,
     float alpha0, alpha1, beta_t;
     float alpha = 1, beta = 0;
 
-    std::vector<int> sp_size(3, 1), sp_stride(3, 1), w_size(3, 1), w_stride(3, 1), x_size(3, 1),
+    std::vector<size_t> sp_size(3, 1), sp_stride(3, 1), w_size(3, 1), w_stride(3, 1), x_size(3, 1),
         x_stride(3, 1), y_size(3, 1), y_stride(3, 1), hx_size(3, 1), hx_stride(3, 1);
     miopen::TensorDescriptor sp_desc, w_desc, x_desc, y_desc, hx_desc;
 
@@ -1471,9 +1471,10 @@ void RNNDescriptor::RNNForwardInferencePacked(const Handle& handle,
     hx_stride[0] = in_n.at(0) * uni_stride;
     hx_stride[1] = uni_stride;
 
-    int wei_shift, prelayer_shift;
-    int wei_len = 0;
-    int hid_off = 0;
+    int wei_shift;
+    size_t prelayer_shift;
+    int wei_len    = 0;
+    size_t hid_off = 0;
 
     switch(rnnMode)
     {
@@ -1509,7 +1510,7 @@ void RNNDescriptor::RNNForwardInferencePacked(const Handle& handle,
 
     for(int li = 0; li < nLayers; li++)
     {
-        int hid_shift           = li * batch_n * hy_stride;
+        size_t hid_shift        = static_cast<size_t>(li) * batch_n * hy_stride;
         int hx_shift            = li * hy_n * bi_stride;
         int wei_shift_bias_temp = static_cast<int>(wei_shift_bias) + li * 2 * wei_stride;
 
@@ -1574,7 +1575,7 @@ void RNNDescriptor::RNNForwardInferencePacked(const Handle& handle,
         else
         {
             wei_shift = (in_h + hy_h) * wei_stride + (li - 1) * (bi * hy_h + hy_h) * wei_stride;
-            prelayer_shift = (li - 1) * batch_n * hy_stride + hid_off;
+            prelayer_shift = static_cast<size_t>(li - 1) * batch_n * hy_stride + hid_off;
 
             miopen::GemmDescriptor gemm_desc = GemmDescriptor{false,
                                                               false,
@@ -1817,9 +1818,9 @@ void RNNDescriptor::RNNForwardInferencePacked(const Handle& handle,
         for(int ti = 0; ti < seqLen; ti++)
         {
             baccbi -= in_n.at(seqLen - 1 - ti);
-            wei_shift         = in_h * wei_stride + li * (bi * hy_h + hy_h) * wei_stride;
-            int pretime_shift = 0;
-            int use_time      = 0;
+            wei_shift            = in_h * wei_stride + li * (bi * hy_h + hy_h) * wei_stride;
+            size_t pretime_shift = 0;
+            int use_time         = 0;
 
             for(int ri = 0; ri < bi; ri++)
             {
@@ -1866,7 +1867,7 @@ void RNNDescriptor::RNNForwardInferencePacked(const Handle& handle,
                                          w,
                                          wei_shift + ri * wei_len * uni_stride,
                                          workSpace,
-                                         static_cast<int>(offset) + ri * wei_len,
+                                         offset + ri * wei_len,
                                          GemmBackend_t::rocblas);
 
                             if(gemm_status != miopenStatusSuccess)
@@ -1914,8 +1915,7 @@ void RNNDescriptor::RNNForwardInferencePacked(const Handle& handle,
                                          w,
                                          wei_shift + ri * wei_len * uni_stride,
                                          workSpace,
-                                         static_cast<int>(offset) + ri * wei_len +
-                                             in_n.at(use_time) * hy_stride,
+                                         offset + ri * wei_len + in_n.at(use_time) * hy_stride,
                                          GemmBackend_t::rocblas);
 
                             if(gemm_status != miopenStatusSuccess)
@@ -1961,7 +1961,7 @@ void RNNDescriptor::RNNForwardInferencePacked(const Handle& handle,
                                          w,
                                          wei_shift + ri * wei_len * uni_stride,
                                          workSpace,
-                                         static_cast<int>(offset) + ri * wei_len,
+                                         offset + ri * wei_len,
                                          GemmBackend_t::rocblas);
 
                             if(gemm_status != miopenStatusSuccess)
@@ -2525,7 +2525,7 @@ void RNNDescriptor::RNNForwardInferencePacked(const Handle& handle,
     }
 
     // output
-    prelayer_shift = (static_cast<int>(nLayers) - 1) * batch_n * hy_stride + hid_off;
+    prelayer_shift = static_cast<size_t>(nLayers - 1) * batch_n * hy_stride + hid_off;
 
     sp_size[1] = batch_n;
     sp_size[2] = hy_h * bi;
@@ -2863,7 +2863,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
     float alpha0, alpha1, beta_t;
     float alpha = 1, beta = 0;
 
-    std::vector<int> sp_size(3, 1), sp_stride(3, 1), w_size(3, 1), w_stride(3, 1), x_size(3, 1),
+    std::vector<size_t> sp_size(3, 1), sp_stride(3, 1), w_size(3, 1), w_stride(3, 1), x_size(3, 1),
         x_stride(3, 1), y_size(3, 1), y_stride(3, 1), hx_size(3, 1), hx_stride(3, 1);
     miopen::TensorDescriptor sp_desc, w_desc, x_desc, y_desc, hx_desc;
 
@@ -2905,9 +2905,10 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
     hx_stride[0] = in_n.at(0) * uni_stride;
     hx_stride[1] = uni_stride;
 
-    int wei_shift, prelayer_shift;
-    int wei_len = 0;
-    int hid_off = 0;
+    int wei_shift;
+    size_t prelayer_shift;
+    int wei_len    = 0;
+    size_t hid_off = 0;
 
     switch(rnnMode)
     {
@@ -2915,7 +2916,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
     case miopenRNNTANH:
         // printf("run rnn gpu fwd \n");
         wei_len = hy_h;
-        hid_off = static_cast<int>(nLayers) * batch_n * hy_stride;
+        hid_off = static_cast<size_t>(nLayers) * batch_n * hy_stride;
         break;
     case miopenLSTM:
         // printf("run lstm gpu fwd \n");
@@ -2943,7 +2944,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
 
     for(int li = 0; li < nLayers; li++)
     {
-        int hid_shift           = li * batch_n * hy_stride;
+        size_t hid_shift        = static_cast<size_t>(li) * batch_n * hy_stride;
         int hx_shift            = li * hy_n * bi_stride;
         int wei_shift_bias_temp = static_cast<int>(wei_shift_bias) + li * 2 * wei_stride;
 
@@ -3007,7 +3008,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
         else
         {
             wei_shift = (in_h + hy_h) * wei_stride + (li - 1) * (bi * hy_h + hy_h) * wei_stride;
-            prelayer_shift = (li - 1) * batch_n * hy_stride + hid_off;
+            prelayer_shift = static_cast<size_t>(li - 1) * batch_n * hy_stride + hid_off;
 
             if(use_dropout)
             {
@@ -3025,15 +3026,17 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
                 size_t drop_rsv_size = drop_out_desc.GetElementSize();
                 size_t drop_rsv_start =
                     algoMode == miopenRNNdefault && rnnMode == miopenLSTM
-                        ? nLayers * batch_n * hy_stride + nLayers * batch_n * hy_h * bi
-                        : 2 * nLayers * batch_n * hy_stride;
+                        ? static_cast<size_t>(nLayers) * batch_n * hy_stride +
+                              static_cast<size_t>(nLayers) * batch_n * hy_h * bi
+                        : 2 * static_cast<size_t>(nLayers) * batch_n * hy_stride;
 
                 size_t drop_in_offset = prelayer_shift;
                 size_t drop_out_offset =
                     drop_rsv_start + (static_cast<size_t>(li) - 1) * batch_n * hy_h * bi;
-                size_t drop_rsv_offset = (drop_rsv_start + (nLayers - 1) * batch_n * hy_h * bi) *
-                                             (wDesc.GetType() == miopenFloat ? 4 : 2) +
-                                         (li - 1) * drop_rsv_size;
+                size_t drop_rsv_offset =
+                    (drop_rsv_start + static_cast<size_t>(nLayers - 1) * batch_n * hy_h * bi) *
+                        (wDesc.GetType() == miopenFloat ? 4 : 2) +
+                    (li - 1) * drop_rsv_size;
 
                 miopen::deref(dropoutDesc)
                     .Dropout(handle,
@@ -3275,9 +3278,9 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
                                              &beta_t,
                                              sp_desc,
                                              reserveSpace,
-                                             static_cast<int>(offset) + wei_len,
+                                             offset + wei_len,
                                              wei_shift_bias_temp + wei_len,
-                                             static_cast<int>(offset) + wei_len,
+                                             offset + wei_len,
                                              true);
                                     // Update time
                                     profileRNNkernels(handle, 1, ctime);
@@ -3296,9 +3299,9 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
         for(int ti = 0; ti < seqLen; ti++)
         {
             baccbi -= in_n.at(seqLen - 1 - ti);
-            wei_shift         = in_h * wei_stride + li * (bi * hy_h + hy_h) * wei_stride;
-            int pretime_shift = 0;
-            int use_time      = 0;
+            wei_shift            = in_h * wei_stride + li * (bi * hy_h + hy_h) * wei_stride;
+            size_t pretime_shift = 0;
+            int use_time         = 0;
 
             for(int ri = 0; ri < bi; ri++)
             {
@@ -3345,7 +3348,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
                                          w,
                                          wei_shift + ri * wei_len * uni_stride,
                                          reserveSpace,
-                                         static_cast<int>(offset) + ri * wei_len,
+                                         offset + ri * wei_len,
                                          GemmBackend_t::rocblas);
 
                             if(gemm_status != miopenStatusSuccess)
@@ -3394,8 +3397,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
                                          w,
                                          wei_shift + ri * wei_len * uni_stride,
                                          reserveSpace,
-                                         static_cast<int>(offset) + ri * wei_len +
-                                             in_n.at(use_time) * hy_stride,
+                                         offset + ri * wei_len + in_n.at(use_time) * hy_stride,
                                          GemmBackend_t::rocblas);
 
                             if(gemm_status != miopenStatusSuccess)
@@ -3441,7 +3443,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
                                          w,
                                          wei_shift + ri * wei_len * uni_stride,
                                          reserveSpace,
-                                         static_cast<int>(offset) + ri * wei_len,
+                                         offset + ri * wei_len,
                                          GemmBackend_t::rocblas);
 
                             if(gemm_status != miopenStatusSuccess)
@@ -3509,7 +3511,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
                                 pretime_shift + static_cast<size_t>(bi) * wei_len +
                                     static_cast<size_t>(ri) * hy_h,
                                 (li * batch_n + cur_batch) * bi * hy_h + ri * hy_h +
-                                    nLayers * batch_n * hy_stride,
+                                    static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                 offset + hid_off + static_cast<size_t>(ri) * hy_h);
                             // Update time
                             profileRNNkernels(handle, 1, ctime);
@@ -3546,7 +3548,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
                                              static_cast<size_t>(ri) * wei_len,
                                          offset + 3 * static_cast<size_t>(hy_h) +
                                              static_cast<size_t>(ri) * wei_len +
-                                             nLayers * batch_n * hy_stride);
+                                             static_cast<size_t>(nLayers) * batch_n * hy_stride);
                         // Update time
                         profileRNNkernels(handle, 1, ctime);
 
@@ -3597,7 +3599,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
                                          sp_desc,
                                          reserveSpace,
                                          offset + hy_h + static_cast<size_t>(ri) * wei_len +
-                                             nLayers * batch_n * hy_stride,
+                                             static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                          hx_shift + ri * hy_n * hy_h,
                                          offset + static_cast<size_t>(bi) * wei_len +
                                              static_cast<size_t>(ri) * hy_h,
@@ -3632,7 +3634,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
                                          reserveSpace,
                                          offset + hy_h + static_cast<size_t>(ri) * wei_len +
                                              static_cast<size_t>(in_n.at(use_time)) * hy_stride +
-                                             nLayers * batch_n * hy_stride,
+                                             static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                          hx_shift + ri * hy_n * hy_h + in_n.at(use_time) * hy_h,
                                          offset + static_cast<size_t>(bi) * wei_len +
                                              static_cast<size_t>(ri) * hy_h +
@@ -3696,7 +3698,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
                                              static_cast<size_t>(ri) * hy_h,
                                          offset + static_cast<size_t>(bi) * wei_len +
                                              static_cast<size_t>(ri) * hy_h +
-                                             nLayers * batch_n * hy_stride);
+                                             static_cast<size_t>(nLayers) * batch_n * hy_stride);
                         // Update time
                         profileRNNkernels(handle, 1, ctime);
 
@@ -4038,7 +4040,7 @@ void RNNDescriptor::RNNForwardTrainingPackedTensors(
     }
 
     // output
-    prelayer_shift = (static_cast<int>(nLayers) - 1) * batch_n * hy_stride + hid_off;
+    prelayer_shift = static_cast<size_t>(nLayers - 1) * batch_n * hy_stride + hid_off;
 
     sp_size[1] = batch_n;
     sp_size[2] = hy_h * bi;
@@ -4371,7 +4373,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
     float alpha0, alpha1, beta_t;
     float alpha = 1, beta = 0;
 
-    std::vector<int> sp_size(3, 1), sp_stride(3, 1), x_size(3, 1), x_stride(3, 1), y_size(3, 1),
+    std::vector<size_t> sp_size(3, 1), sp_stride(3, 1), x_size(3, 1), x_stride(3, 1), y_size(3, 1),
         y_stride(3, 1), hx_size(3, 1), hx_stride(3, 1);
     miopen::TensorDescriptor sp_desc, x_desc, y_desc, hx_desc;
 
@@ -4411,7 +4413,9 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
     hx_stride[0] = in_n.at(0) * uni_stride;
     hx_stride[1] = uni_stride;
 
-    int prelayer_shift, pretime_shift, cur_time, cur_batch;
+    size_t prelayer_shift = 0;
+    size_t pretime_shift  = 0;
+    int cur_time, cur_batch;
     int wei_len    = 0;
     int wei_len_t  = 0;
     int dhd_off    = 0;
@@ -4458,7 +4462,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
     for(int li = static_cast<int>(nLayers) - 1; li >= 0; li--)
     {
         int wei_shift     = (in_h + hy_h) * wei_stride + li * (bi * hy_h + hy_h) * wei_stride;
-        int hid_shift     = li * batch_n * hy_stride;
+        size_t hid_shift  = static_cast<size_t>(li) * batch_n * hy_stride;
         int hx_shift      = li * hy_n * bi_stride;
         int weitime_shift = in_h * wei_stride + li * (bi * hy_h + hy_h) * wei_stride;
 
@@ -4478,7 +4482,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
         }
         else
         {
-            prelayer_shift                   = (li + 1) * batch_n * hy_stride;
+            prelayer_shift                   = static_cast<size_t>(li + 1) * batch_n * hy_stride;
             miopen::GemmDescriptor gemm_desc = GemmDescriptor{false,
                                                               false,
                                                               false,
@@ -4533,12 +4537,14 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                 size_t drop_rsv_size = drop_in_desc.GetElementSize();
                 size_t drop_rsv_start =
                     algoMode == miopenRNNdefault && rnnMode == miopenLSTM
-                        ? nLayers * batch_n * hy_stride + nLayers * batch_n * hy_h * bi
-                        : 2 * nLayers * batch_n * hy_stride;
+                        ? static_cast<size_t>(nLayers) * batch_n * hy_stride +
+                              static_cast<size_t>(nLayers) * batch_n * hy_h * bi
+                        : 2 * static_cast<size_t>(nLayers) * batch_n * hy_stride;
 
-                size_t drop_rsv_offset = (drop_rsv_start + (nLayers - 1) * batch_n * hy_h * bi) *
-                                             (rnn_data_type == miopenFloat ? 4 : 2) +
-                                         li * drop_rsv_size;
+                size_t drop_rsv_offset =
+                    (drop_rsv_start + static_cast<size_t>(nLayers - 1) * batch_n * hy_h * bi) *
+                        (rnn_data_type == miopenFloat ? 4 : 2) +
+                    li * drop_rsv_size;
 
                 miopen::deref(dropoutDesc)
                     .Dropout(handle,
@@ -4653,8 +4659,8 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                             profileRNNkernels(handle, 1, ctime);
                         }
 
-                        pretime_shift =
-                            li * batch_n * hy_stride + pre_batch * hy_stride + ri * wei_len;
+                        pretime_shift = static_cast<size_t>(li) * batch_n * hy_stride +
+                                        pre_batch * hy_stride + ri * wei_len;
 
                         if(in_n.at(use_time) > 0)
                         {
@@ -4681,7 +4687,8 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                          sp_desc,
                                          workSpace,
                                          pretime_shift - ri * 2 * hy_h + dhd_off,
-                                         pretime_shift + nLayers * batch_n * hy_stride,
+                                         pretime_shift +
+                                             static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                          offset + dhd_off + static_cast<size_t>(ri) * hy_h);
                                 // Update time
                                 profileRNNkernels(handle, 1, ctime);
@@ -4702,7 +4709,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                            sp_desc,
                                            workSpace,
                                            pretime_shift - ri * 2 * hy_h + dhd_off +
-                                               static_cast<int>(nLayers) * batch_n * hy_stride,
+                                               static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                            pretime_shift + 2 * hy_h);
                                 // Update time
                                 profileRNNkernels(handle, 1, ctime);
@@ -4818,7 +4825,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                 offset + 3 * static_cast<size_t>(hy_h) +
                                     static_cast<size_t>(ri) * wei_len,
                                 (li * batch_n + cur_batch) * bi * hy_h + ri * hy_h +
-                                    nLayers * batch_n * hy_stride,
+                                    static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                 li * batch_n * hy_stride + pre_batch2 * hy_stride + bi * wei_len +
                                     ri * hy_h,
                                 dcy,
@@ -4881,7 +4888,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                           workSpace,
                                           offset + static_cast<size_t>(bi) * wei_len +
                                               static_cast<size_t>(ri) * hy_h +
-                                              nLayers * batch_n * hy_stride,
+                                              static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                           offset + static_cast<size_t>(bi) * wei_len +
                                               static_cast<size_t>(ri) * hy_h,
                                           offset + static_cast<size_t>(bi) * wei_len +
@@ -4959,10 +4966,11 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                     miopen::TensorDescriptor(rnn_data_type, sp_size, sp_stride);
                             }
 
-                            pretime_shift = li * batch_n * hy_stride + pre_batch * hy_stride;
-                            alpha0        = 1;
-                            alpha1        = 1;
-                            beta_t        = 1;
+                            pretime_shift = static_cast<size_t>(li) * batch_n * hy_stride +
+                                            pre_batch * hy_stride;
+                            alpha0 = 1;
+                            alpha1 = 1;
+                            beta_t = 1;
 
                             if(in_n.at(cur_time) != in_n.at(use_time))
                             {
@@ -4985,7 +4993,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                      pretime_shift + static_cast<size_t>(bi) * wei_len +
                                          static_cast<size_t>(ri) * hy_h,
                                      pretime_shift + hy_h + ri * wei_len +
-                                         nLayers * batch_n * hy_stride,
+                                         static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                      offset + static_cast<size_t>(bi) * wei_len +
                                          static_cast<size_t>(ri) * hy_h,
                                      true);
@@ -5071,7 +5079,8 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
 
                             if(in_n.at(use_time2) > 0)
                             {
-                                pretime_shift = li * batch_n * hy_stride + pre_batch2 * hy_stride;
+                                pretime_shift = static_cast<size_t>(li) * batch_n * hy_stride +
+                                                pre_batch2 * hy_stride;
 
                                 if(in_n.at(cur_time) != in_n.at(use_time2))
                                 {
@@ -5124,7 +5133,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                      static_cast<size_t>(ri) * hy_h,
                                  offset + 3 * static_cast<size_t>(hy_h) +
                                      static_cast<size_t>(ri) * wei_len +
-                                     nLayers * batch_n * hy_stride,
+                                     static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                  offset + static_cast<size_t>(ri) * wei_len);
                         // Update time
                         profileRNNkernels(handle, 1, ctime);
@@ -5143,7 +5152,8 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                  workSpace,
                                  offset + dhd_off + static_cast<size_t>(ri) * hy_h,
                                  offset + static_cast<size_t>(bi) * wei_len +
-                                     static_cast<size_t>(ri) * hy_h + nLayers * batch_n * hy_stride,
+                                     static_cast<size_t>(ri) * hy_h +
+                                     static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                  offset + 2 * static_cast<size_t>(hy_h) +
                                      static_cast<size_t>(ri) * wei_len);
                         // Update time
@@ -5183,7 +5193,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                           workSpace,
                                           offset + 3 * static_cast<size_t>(hy_h) +
                                               static_cast<size_t>(ri) * wei_len +
-                                              nLayers * batch_n * hy_stride,
+                                              static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                           offset + 3 * static_cast<size_t>(hy_h) +
                                               static_cast<size_t>(ri) * wei_len,
                                           offset + 3 * static_cast<size_t>(hy_h) +
@@ -5302,7 +5312,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                  offset + 2 * static_cast<size_t>(hy_h) +
                                      static_cast<size_t>(ri) * wei_len,
                                  offset + dhd_off + static_cast<size_t>(ri) * hy_h +
-                                     nLayers * batch_n * hy_stride,
+                                     static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                  offset + hy_h + static_cast<size_t>(ri) * wei_len);
                         // Update time
                         profileRNNkernels(handle, 1, ctime);
@@ -5321,9 +5331,9 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                  offset + 2 * static_cast<size_t>(hy_h) +
                                      static_cast<size_t>(ri) * wei_len,
                                  offset + hy_h + static_cast<size_t>(ri) * wei_len +
-                                     nLayers * batch_n * hy_stride,
+                                     static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                  offset + dhd_off + static_cast<size_t>(ri) * hy_h +
-                                     nLayers * batch_n * hy_stride);
+                                     static_cast<size_t>(nLayers) * batch_n * hy_stride);
                         // Update time
                         profileRNNkernels(handle, 1, ctime);
 
@@ -5503,7 +5513,8 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
 
                     if(in_n.at(cur_time) > use_batch)
                     {
-                        pretime_shift = li * batch_n * hy_stride + cur_batch * hy_stride;
+                        pretime_shift =
+                            static_cast<size_t>(li) * batch_n * hy_stride + cur_batch * hy_stride;
 
                         if(rnnMode == miopenLSTM || rnnMode == miopenGRU)
                         {
@@ -5521,23 +5532,23 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                 alpha1 = 1;
                                 beta_t = 0;
 
-                                OpTensor(handle,
-                                         miopenTensorOpMul,
-                                         &alpha0,
-                                         sp_desc,
-                                         workSpace,
-                                         &alpha1,
-                                         sp_desc,
-                                         reserveSpace,
-                                         &beta_t,
-                                         sp_desc,
-                                         reserveSpace,
-                                         pretime_shift + 2 * hy_h + ri * wei_len +
-                                             use_batch * hy_stride,
-                                         pretime_shift + hy_h + ri * wei_len +
-                                             use_batch * hy_stride + nLayers * batch_n * hy_stride,
-                                         pretime_shift + dhd_off + ri * hy_h +
-                                             use_batch * hy_stride + nLayers * batch_n * hy_stride);
+                                OpTensor(
+                                    handle,
+                                    miopenTensorOpMul,
+                                    &alpha0,
+                                    sp_desc,
+                                    workSpace,
+                                    &alpha1,
+                                    sp_desc,
+                                    reserveSpace,
+                                    &beta_t,
+                                    sp_desc,
+                                    reserveSpace,
+                                    pretime_shift + 2 * hy_h + ri * wei_len + use_batch * hy_stride,
+                                    pretime_shift + hy_h + ri * wei_len + use_batch * hy_stride +
+                                        static_cast<size_t>(nLayers) * batch_n * hy_stride,
+                                    pretime_shift + dhd_off + ri * hy_h + use_batch * hy_stride +
+                                        static_cast<size_t>(nLayers) * batch_n * hy_stride);
                                 // Update time
                                 profileRNNkernels(handle, 1, ctime);
                                 miopen::GemmDescriptor gemm_desc =
@@ -5602,7 +5613,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                          pretime_shift + dhd_off + ri * hy_h +
                                              use_batch * hy_stride,
                                          pretime_shift + ri * wei_len + use_batch * hy_stride +
-                                             nLayers * batch_n * hy_stride,
+                                             static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                          hx_shift + ri * hy_n * hy_h + use_batch * hy_h);
                                 // Update time
                                 profileRNNkernels(handle, 1, ctime);
@@ -5694,7 +5705,7 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
                                      pretime_shift + bi * wei_len + ri * hy_h +
                                          static_cast<size_t>(use_batch) * hy_stride,
                                      pretime_shift + hy_h + ri * wei_len + use_batch * hy_stride +
-                                         nLayers * batch_n * hy_stride,
+                                         static_cast<size_t>(nLayers) * batch_n * hy_stride,
                                      hx_shift + ri * hy_n * hy_h + use_batch * hy_h);
                             // Update time
                             profileRNNkernels(handle, 1, ctime);
@@ -5709,7 +5720,8 @@ void RNNDescriptor::RNNBackwardDataPackedTensors(
     // dinput
     if(inputMode == miopenRNNskip)
     {
-        const std::vector<int> dx_size{1, batch_n, hy_h};
+        const std::vector<size_t> dx_size{
+            1, static_cast<size_t>(batch_n), static_cast<size_t>(hy_h)};
         x_desc  = miopen::TensorDescriptor(rnn_data_type, dx_size, x_stride);
         sp_desc = miopen::TensorDescriptor(rnn_data_type, dx_size, sp_stride);
 
@@ -6043,7 +6055,7 @@ void RNNDescriptor::RNNBackwardWeightsPackedTensors(
 
     float alpha0, alpha1, beta_t = 0;
 
-    std::vector<int> sp_size(3, 1), sp_stride(3, 1), w_size(3, 1), w_stride(3, 1);
+    std::vector<size_t> sp_size(3, 1), sp_stride(3, 1), w_size(3, 1), w_stride(3, 1);
     miopen::TensorDescriptor sp_desc, w_desc;
 
     sp_stride[0] = batch_n * hy_stride;
@@ -6061,10 +6073,10 @@ void RNNDescriptor::RNNBackwardWeightsPackedTensors(
     w_stride[1] = wei_stride;
     w_size[2]   = 1;
 
-    int wei_len   = 0;
-    int hid_off   = 0;
-    int use_time  = 0;
-    int pre_batch = 0;
+    int wei_len    = 0;
+    size_t hid_off = 0;
+    int use_time   = 0;
+    int pre_batch  = 0;
 
     switch(rnnMode)
     {
@@ -6072,7 +6084,7 @@ void RNNDescriptor::RNNBackwardWeightsPackedTensors(
     case miopenRNNTANH:
         // printf("run rnn gpu bwd weights \n");
         wei_len = hy_h;
-        hid_off = static_cast<int>(nLayers) * batch_n * hy_stride;
+        hid_off = static_cast<size_t>(nLayers) * batch_n * hy_stride;
         break;
     case miopenLSTM:
         // printf("run lstm gpu bwd weights \n");
@@ -6088,8 +6100,8 @@ void RNNDescriptor::RNNBackwardWeightsPackedTensors(
 
     for(int li = 0; li < nLayers; li++)
     {
-        int hid_shift = li * batch_n * hy_stride;
-        int wei_shift = (in_h + hy_h) * wei_stride + (li - 1) * (bi * hy_h + hy_h) * wei_stride;
+        size_t hid_shift = static_cast<size_t>(li) * batch_n * hy_stride;
+        int wei_shift    = (in_h + hy_h) * wei_stride + (li - 1) * (bi * hy_h + hy_h) * wei_stride;
 
         size_t dw_bias_offset = wei_shift_bias + static_cast<size_t>(li) * 2 * wei_stride;
 
@@ -6126,12 +6138,13 @@ void RNNDescriptor::RNNBackwardWeightsPackedTensors(
         }
         else
         {
-            auto prelayer_shift = static_cast<int>(
+            size_t prelayer_shift =
                 use_dropout ? (algoMode == miopenRNNdefault && rnnMode == miopenLSTM
-                                   ? nLayers * batch_n * hy_stride + nLayers * batch_n * hy_h * bi
-                                   : 2 * nLayers * batch_n * hy_stride) +
+                                   ? static_cast<size_t>(nLayers) * batch_n * hy_stride +
+                                         static_cast<size_t>(nLayers) * batch_n * hy_h * bi
+                                   : 2 * static_cast<size_t>(nLayers) * batch_n * hy_stride) +
                                   (static_cast<size_t>(li) - 1) * batch_n * hy_h * bi
-                            : (li - 1) * batch_n * hy_stride + hid_off);
+                            : static_cast<size_t>(li - 1) * batch_n * hy_stride + hid_off;
 
             miopen::GemmDescriptor gemm_desc = GemmDescriptor{false,
                                                               true,
@@ -6350,7 +6363,8 @@ void RNNDescriptor::RNNBackwardWeightsPackedTensors(
             }
         }
 
-        int pretime_shift, hx_shift, cur_time;
+        size_t pretime_shift = 0;
+        int hx_shift, cur_time;
         bool comb_check = true;
         if(seqLen > 2)
         {
@@ -6367,10 +6381,10 @@ void RNNDescriptor::RNNBackwardWeightsPackedTensors(
 
             for(int ri = 0; ri < bi; ri++)
             {
-                hid_shift =
-                    ri == 0 ? li * batch_n * hy_stride
-                            : (li * batch_n * hy_stride + in_n.at(0) * (seqLen - 1) * hy_stride);
-                cur_time = ri == 0 ? 0 : seqLen - 1;
+                hid_shift = ri == 0 ? static_cast<size_t>(li) * batch_n * hy_stride
+                                    : (static_cast<size_t>(li) * batch_n * hy_stride +
+                                       in_n.at(0) * (seqLen - 1) * hy_stride);
+                cur_time  = ri == 0 ? 0 : seqLen - 1;
 
                 if(in_n.at(cur_time) > 0 && hx != nullptr)
                 {
@@ -6452,11 +6466,13 @@ void RNNDescriptor::RNNBackwardWeightsPackedTensors(
                         profileRNNkernels(handle, 1, ctime);
                     }
 
-                    hid_shift = ri == 0 ? (li * batch_n * hy_stride + in_n.at(0) * hy_stride)
-                                        : (li * batch_n * hy_stride);
-                    pretime_shift =
-                        ri == 0 ? li * batch_n * hy_stride + hid_off
-                                : li * batch_n * hy_stride + in_n.at(0) * hy_stride + hid_off;
+                    hid_shift     = ri == 0 ? (static_cast<size_t>(li) * batch_n * hy_stride +
+                                           in_n.at(0) * hy_stride)
+                                            : (static_cast<size_t>(li) * batch_n * hy_stride);
+                    pretime_shift = ri == 0
+                                        ? static_cast<size_t>(li) * batch_n * hy_stride + hid_off
+                                        : static_cast<size_t>(li) * batch_n * hy_stride +
+                                              in_n.at(0) * hy_stride + hid_off;
 
                     miopen::GemmDescriptor gemm_desc =
                         GemmDescriptor{false,
@@ -6510,9 +6526,11 @@ void RNNDescriptor::RNNBackwardWeightsPackedTensors(
 
                 for(int ri = 0; ri < bi; ri++)
                 {
-                    hid_shift = ri == 0 ? (li * batch_n * hy_stride + bacc * hy_stride)
-                                        : (li * batch_n * hy_stride + baccbi * hy_stride);
-                    cur_time  = ri == 0 ? ti : seqLen - 1 - ti;
+                    hid_shift =
+                        ri == 0
+                            ? (static_cast<size_t>(li) * batch_n * hy_stride + bacc * hy_stride)
+                            : (static_cast<size_t>(li) * batch_n * hy_stride + baccbi * hy_stride);
+                    cur_time = ri == 0 ? ti : seqLen - 1 - ti;
                     if(ti > 0)
                     {
                         pre_batch =
@@ -6602,8 +6620,8 @@ void RNNDescriptor::RNNBackwardWeightsPackedTensors(
                                 profileRNNkernels(handle, 1, ctime);
                             }
 
-                            pretime_shift =
-                                li * batch_n * hy_stride + pre_batch * hy_stride + hid_off;
+                            pretime_shift = static_cast<size_t>(li) * batch_n * hy_stride +
+                                            pre_batch * hy_stride + hid_off;
 
                             if(in_n.at(use_time) > 0)
                             {

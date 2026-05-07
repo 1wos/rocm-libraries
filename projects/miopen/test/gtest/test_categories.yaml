@@ -35,6 +35,7 @@ positive_patterns: &positive_patterns
   - "*/GPU_LayoutTransposeTest_*"
   - "*/GPU_Lrn*"
   - "*/GPU_lstm_extra*"
+  - "Standard/*"
   - "*/GPU_MultiMarginLoss_*"
   - "*/GPU_ConvNonpack*"
   - "*/GPU_PerfConfig_HipImplicitGemm*"
@@ -165,7 +166,7 @@ test_categories:
       - "gtest/gtest_activation.cpp"
       - "handle_test.cpp"
       - "gtest/handle_hip_device.cpp"
-      
+
       # Standard tests
       - "conv2d.cpp"
       - "conv2d_bias.cpp"
@@ -190,7 +191,7 @@ test_categories:
       - "gtest/reduce.cpp"
       - "gtest/layernorm.cpp"
       - "gtest/cache.cpp"
-    
+
     labels:
       - "standard"
       - "pr"
@@ -246,7 +247,7 @@ test_categories:
       - "gtest/gtest_activation.cpp"
       - "handle_test.cpp"
       - "gtest/handle_hip_device.cpp"
-      
+
       # Standard tests
       - "conv2d.cpp"
       - "conv2d_bias.cpp"
@@ -321,7 +322,7 @@ test_categories:
       - "*GPU_TestMhaFind20_FP16*" #rocm-1016 fixed in develop. Re-enable once bumped
       # Only exclude explicitly disabled tests
       - "*DISABLED*"
-    
+
     labels:
       - "full"
       - "weekly"
