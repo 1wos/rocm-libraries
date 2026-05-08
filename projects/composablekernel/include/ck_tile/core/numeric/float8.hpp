@@ -1,18 +1,19 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+#pragma once
+
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/utility/bit_cast.hpp"
-#include "ck_tile/core/numeric/numeric.hpp"
-#include "ck_tile/core/utility/random.hpp"
 #include "ck_tile/core/numeric/half.hpp"
-#include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
+#include "ck_tile/core/numeric/type_convert.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
+#include "ck_tile/core/utility/random.hpp"
+
 #include <stdint.h>
 #include <type_traits>
-
-#pragma once
 
 #if(defined(__gfx94__) || defined(__gfx12__)) && __HIP_DEVICE_COMPILE__
 #define CK_TILE_FP8_CVT_DEVICE 1
@@ -1115,6 +1116,33 @@ bf8_t exp2(bf8_t x) { return static_cast<bf8_t>(exp2f(static_cast<float>(x))); }
 
 CK_TILE_DEVICE
 bf8_t log(bf8_t x) { return static_cast<bf8_t>(__logf(static_cast<float>(x))); };
+
+#else
+
+template <>
+CK_TILE_HOST_DEVICE constexpr float type_convert<float, fp8_t>(fp8_t x)
+{
+    return fp8_to_float(x);
+}
+
+template <>
+CK_TILE_HOST_DEVICE constexpr float type_convert<float, bf8_t>(bf8_t x)
+{
+    return bf8_to_float(x);
+}
+
+template <>
+CK_TILE_HOST_DEVICE constexpr fp8_t type_convert<fp8_t, float>(float x)
+{
+    return float_to_fp8(x);
+}
+
+template <>
+CK_TILE_HOST_DEVICE constexpr bf8_t type_convert<bf8_t, float>(float x)
+{
+    return float_to_bf8(x);
+}
+
 #endif
 
 } // namespace ck_tile

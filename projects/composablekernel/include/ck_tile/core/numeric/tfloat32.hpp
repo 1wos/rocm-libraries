@@ -5,6 +5,7 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
+#include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 
 #include <cmath>
@@ -224,10 +225,17 @@ CK_TILE_DEVICE
 tf32_t log(tf32_t x) { return static_cast<tf32_t>(__logf(static_cast<float>(x))); };
 
 #if !CK_TILE_USE_CUSTOM_DATA_TYPE
-// for type_convert
-CK_TILE_HOST_DEVICE tf32_t float_to_tf32(float x) { return static_cast<tf32_t>(x); }
+template <>
+CK_TILE_HOST_DEVICE constexpr float type_convert<float, tf32_t>(tf32_t x)
+{
+    return static_cast<float>(x);
+}
 
-CK_TILE_HOST_DEVICE float tf32_to_float(tf32_t x) { return static_cast<float>(x); }
+template <>
+CK_TILE_HOST_DEVICE constexpr tf32_t type_convert<tf32_t, float>(float x)
+{
+    return static_cast<tf32_t>(x);
+}
 #endif
 
 } // namespace ck_tile

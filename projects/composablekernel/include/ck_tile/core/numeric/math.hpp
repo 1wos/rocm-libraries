@@ -4,12 +4,18 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
-#include <type_traits>
+
 #include <stdint.h>
+#include <type_traits>
+#include <utility>
+#ifndef __HIP_DEVICE_COMPILE__
 #include <cmath>
+#endif
 
 namespace ck_tile {
 
@@ -504,17 +510,6 @@ CK_TILE_HOST uint32_t sad_u32(uint32_t x, uint32_t y, uint32_t acc)
 
 ///////////////////////////////////////////////////////////////
 
-} // namespace ck_tile
-// blow function need data type pre-defined
-#include "ck_tile/core/numeric/half.hpp"
-#include "ck_tile/core/numeric/bfloat16.hpp"
-#include "ck_tile/core/numeric/float8.hpp"
-#include "ck_tile/core/numeric/type_convert.hpp"
-#ifndef __HIP_DEVICE_COMPILE__
-#include <cmath>
-#endif
-
-namespace ck_tile {
 #if CK_TILE_WORKAROUND_SWDEV_383542
 extern "C" CK_TILE_DEVICE float __ocml_native_recip_f32(float);
 #endif

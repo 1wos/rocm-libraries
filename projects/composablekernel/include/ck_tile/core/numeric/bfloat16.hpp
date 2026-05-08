@@ -1,18 +1,19 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+#pragma once
+
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/utility/bit_cast.hpp"
+#include "ck_tile/core/numeric/ext_vector_base.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
-#include "ck_tile/core/numeric/ext_vector_base.hpp"
+#include "ck_tile/core/numeric/type_convert.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
 #if CK_TILE_USE_LLVM_BUILTIN_BF16
 #include <hip/hip_bfloat16.h>
 #endif
 #include <stdint.h>
-
-#pragma once
 
 namespace ck_tile {
 
@@ -534,5 +535,25 @@ CK_TILE_DEVICE void convert_float_to_bf16_pairs(const ext_vector_t<float, VecSiz
     }
 #endif
 }
+
+#if !CK_TILE_USE_CUSTOM_DATA_TYPE
+template <>
+CK_TILE_HOST_DEVICE constexpr float type_convert<float, bf16_t>(bf16_t x)
+{
+    return bf16_to_float(x);
+}
+
+template <>
+CK_TILE_HOST_DEVICE constexpr bf16_t type_convert<bf16_t, float>(float x)
+{
+    return float_to_bf16(x);
+}
+
+template <>
+CK_TILE_HOST_DEVICE constexpr bf16x2_t type_convert<bf16x2_t, fp32x2_t>(fp32x2_t x)
+{
+    return fp32x2_to_bf16x2(x);
+}
+#endif
 
 } // namespace ck_tile

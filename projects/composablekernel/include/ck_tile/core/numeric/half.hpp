@@ -1,12 +1,16 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+#pragma once
+
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
+#include "ck_tile/core/numeric/type_convert.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
+
 #include <hip/hip_fp16.h>
 
-#pragma once
+#include <cstdint>
 
 namespace ck_tile {
 
@@ -320,4 +324,24 @@ constexpr fp16x2_t fp32x2_to_fp16x2(const fp32x2_t& x)
 {
     return fp16x2_t{float_to_fp16(x.x), float_to_fp16(x.y)};
 }
+
+#if !CK_TILE_USE_CUSTOM_DATA_TYPE
+template <>
+CK_TILE_HOST_DEVICE constexpr float type_convert<float, fp16_t>(fp16_t x)
+{
+    return fp16_to_float(x);
+}
+
+template <>
+CK_TILE_HOST_DEVICE constexpr fp16_t type_convert<fp16_t, float>(float x)
+{
+    return float_to_fp16(x);
+}
+
+template <>
+CK_TILE_HOST_DEVICE constexpr fp16x2_t type_convert<fp16x2_t, fp32x2_t>(fp32x2_t x)
+{
+    return fp32x2_to_fp16x2(x);
+}
+#endif
 } // namespace ck_tile
