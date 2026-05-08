@@ -141,8 +141,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
     static constexpr bool Persistent =
         ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
 
-    using ADataTypeBuf = ADataType;
-    using BDataTypeBuf = BDataType;
+    // TF32 uses tf32_t as compute type but float as buffer/storage type
+    using ADataTypeBuf = ck_tile::if_select_t<ADataType, ck_tile::tf32_t, float, ADataType>;
+    using BDataTypeBuf = ck_tile::if_select_t<BDataType, ck_tile::tf32_t, float, BDataType>;
 
     protected:
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
