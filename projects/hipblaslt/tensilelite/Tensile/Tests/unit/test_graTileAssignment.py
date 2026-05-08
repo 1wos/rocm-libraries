@@ -27,7 +27,7 @@ from gpu_test_helpers import (
     generate_export_epilogue,
     print_offset_grid,
 )
-from Tensile.Components.SubtileBasedKernel import graTileAssignment
+from Tensile.Components.Subtile.SubtileGREmit import graTileAssignment
 
 pytestmark = pytest.mark.gpu
 
