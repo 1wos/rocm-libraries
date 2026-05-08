@@ -1,19 +1,16 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include "ck_tile/core/config.hpp"
-#include "ck_tile/core/numeric/half.hpp"
-#include "ck_tile/core/numeric/integral_constant.hpp"
-#include "ck_tile/core/numeric/math.hpp"
-#include "ck_tile/core/numeric/numeric.hpp"
-#include "ck_tile/core/numeric/pk_fp4.hpp"
-#include "ck_tile/core/utility/bit_cast.hpp"
-#include "ck_tile/core/utility/random.hpp"
-#include <stdint.h>
-#include <type_traits>
-#include "ck_tile/core/numeric/int8.hpp"
-
 #pragma once
+
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/core/numeric/int8.hpp"
+#include "ck_tile/core/numeric/numeric.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
+
+#include <stdint.h>
 
 namespace ck_tile {
 
@@ -45,7 +42,7 @@ struct numeric<pk_int4_t>
         return pk_int4_t(bit_cast<int8_t>(val));
     }
 
-    // minumum finite value
+    // minimum finite value
     CK_TILE_HOST_DEVICE static constexpr pk_int4_t lowest()
     {
         constexpr uint8_t val = 0b10001000;

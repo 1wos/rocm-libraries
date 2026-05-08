@@ -804,7 +804,7 @@ struct numeric<fp8_t>
         return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x08)); // 0b00001000 = 2^-6
     }
 
-    // minumum finite value
+    // minimum finite value
     CK_TILE_HOST_DEVICE static constexpr fp8_t lowest()
     {
         return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0xfe)); // 0b11111110 = -448
@@ -863,7 +863,7 @@ struct numeric<bf8_t>
         return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x04)); // 0b00000100 = 2^-14
     }
 
-    // minumum finite value
+    // minimum finite value
     CK_TILE_HOST_DEVICE static constexpr bf8_t lowest()
     {
         return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0xfb)); // 0b11111011 = -57344
@@ -927,7 +927,7 @@ struct numeric<fp8_t>
         return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x08));
     }
 
-    // minumum finite value
+    // minimum finite value
     CK_TILE_HOST_DEVICE static constexpr fp8_t lowest()
     {
         return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0xff));
@@ -994,7 +994,7 @@ struct numeric<bf8_t>
         return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x04));
     }
 
-    // minumum finite value
+    // minimum finite value
     CK_TILE_HOST_DEVICE static constexpr bf8_t lowest()
     {
         return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0xff));
