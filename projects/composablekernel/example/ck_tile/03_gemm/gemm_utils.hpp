@@ -3,15 +3,14 @@
 
 #pragma once
 
-#include <string>
-#include <variant>
-
 #include "ck_tile/core.hpp"
-#include "ck_tile/core/numeric/pk_fp4.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/utility/json_dump.hpp"
+
+#include <string>
+#include <variant>
 
 struct GemmConfigBase
 {
@@ -34,10 +33,6 @@ struct GemmConfigBase
     static constexpr bool Preshuffle                = false;
     static constexpr bool TiledMMAPermuteN          = false;
 };
-
-// Type trait for tf32 storage type (tf32 uses float for memory layout calculations)
-template <typename T>
-using prec_storage_type = ck_tile::if_select_t<T, ck_tile::tf32_t, float, T>;
 
 template <typename PrecType>
 struct GemmConfigMemoryInterwave : public GemmConfigBase
@@ -85,7 +80,7 @@ struct GemmConfigComputeV3 : public GemmConfigBase
     // Compute V3 only support Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
-    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(prec_storage_type<PrecType>);
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -125,7 +120,7 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(prec_storage_type<PrecType>);
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -297,7 +292,7 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(prec_storage_type<PrecType>);
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -306,7 +301,7 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile =
-        ck_tile::get_k_warp_tile<prec_storage_type<PrecType>, M_Warp_Tile, true>();
+        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile, true>();
 
     static constexpr int kBlockPerCu                = 2;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Default;
@@ -331,8 +326,8 @@ struct GemmTypeConfig;
 template <>
 struct GemmTypeConfig<ck_tile::tf32_t, ck_tile::tf32_t, float>
 {
-    using ADataType   = float;
-    using BDataType   = float;
+    using ADataType   = ck_tile::tf32_t;
+    using BDataType   = ck_tile::tf32_t;
     using AccDataType = float;
     using CDataType   = float;
 };

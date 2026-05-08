@@ -3,13 +3,16 @@
 
 #pragma once
 
-#include "ck_tile/host/concat.hpp"
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/common/utils.hpp"
-#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/host/concat.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/common/utils.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
+#include <algorithm>
+#include <string>
+#include <tuple>
 #include <type_traits>
 
 namespace ck_tile {
@@ -91,9 +94,8 @@ struct CShuffleEpilogue
     using ADataTypeCompute = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataTypeTuple>>;
     using BDataTypeCompute = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataTypeTuple>>;
 
-    // ADataTypeBuf: buffer/storage type (fp32 when tf32)
-    using ADataTypeBuf = if_select_t<ADataTypeCompute, tf32_t, float, ADataTypeCompute>;
-    using BDataTypeBuf = if_select_t<BDataTypeCompute, tf32_t, float, BDataTypeCompute>;
+    using ADataTypeBuf = ADataTypeCompute;
+    using BDataTypeBuf = BDataTypeCompute;
 
     // For warp gemm selection: use tf32_t if compute type was tf32_t
     // For pk_int4/pk_fp4: use the other data type

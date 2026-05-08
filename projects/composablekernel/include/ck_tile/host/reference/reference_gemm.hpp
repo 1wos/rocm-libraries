@@ -3,12 +3,18 @@
 
 #pragma once
 
-#include <cstdlib>
-#include <thread>
-
 #include "ck_tile/core.hpp"
-#include "ck_tile/host/host_tensor.hpp"
 #include "ck_tile/host/device_prop.hpp"
+#include "ck_tile/host/host_tensor.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <iostream>
+#include <thread>
+#include <tuple>
+#include <type_traits>
 
 namespace ck_tile {
 
@@ -454,20 +460,19 @@ template <typename ADataType_,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
           typename ACCElementOp = ck_tile::identity>
-CK_TILE_HOST void
-reference_gemm(const HostTensor<if_select_t<ADataType_, tf32_t, float, ADataType_>>& a_m_k,
-               const HostTensor<if_select_t<BDataType_, tf32_t, float, BDataType_>>& b_k_n,
-               HostTensor<CDataType>& c_m_n,
-               const AElementOp& a_element_op     = {},
-               const BElementOp& b_element_op     = {},
-               const ACCElementOp& acc_element_op = {})
+CK_TILE_HOST void reference_gemm(const HostTensor<ADataType_>& a_m_k,
+                                 const HostTensor<BDataType_>& b_k_n,
+                                 HostTensor<CDataType>& c_m_n,
+                                 const AElementOp& a_element_op     = {},
+                                 const BElementOp& b_element_op     = {},
+                                 const ACCElementOp& acc_element_op = {})
 {
     if constexpr(std::is_same_v<ADataType_, tf32_t> || std::is_same_v<BDataType_, tf32_t>)
         static_assert(std::is_same_v<ADataType_, BDataType_>,
                       "ADataType and BDataType must be the same");
     using ADataTypeCompute = ADataType_;
-    using ADataTypeBuf     = if_select_t<ADataType_, tf32_t, float, ADataType_>;
-    using BDataTypeBuf     = if_select_t<BDataType_, tf32_t, float, BDataType_>;
+    using ADataTypeBuf     = ADataType_;
+    using BDataTypeBuf     = BDataType_;
 
     const std::size_t M = a_m_k.get_length(0);
     const std::size_t N = b_k_n.get_length(1);
@@ -810,8 +815,8 @@ template <typename ADataType_,
           typename LayoutA,
           typename LayoutB,
           typename LayoutC>
-__global__ void naive_gemm_kernel(if_select_t<ADataType_, tf32_t, float, ADataType_>* A,
-                                  if_select_t<BDataType_, tf32_t, float, BDataType_>* B,
+__global__ void naive_gemm_kernel(ADataType_* A,
+                                  BDataType_* B,
                                   CDataType* C,
                                   ck_tile::index_t M,
                                   ck_tile::index_t N,
@@ -824,9 +829,8 @@ __global__ void naive_gemm_kernel(if_select_t<ADataType_, tf32_t, float, ADataTy
         static_assert(std::is_same_v<ADataType_, BDataType_>,
                       "ADataType and BDataType must be the same");
     using ADataTypeCompute = ADataType_;
-    // ADataTypeBuf: buffer/storage type (fp32 when tf32)
-    using ADataTypeBuf = if_select_t<ADataType_, tf32_t, float, ADataType_>;
-    using BDataTypeBuf = if_select_t<BDataType_, tf32_t, float, BDataType_>;
+    using ADataTypeBuf     = ADataType_;
+    using BDataTypeBuf     = BDataType_;
 
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int row = idx / N; // Compute row index
@@ -932,8 +936,8 @@ template <typename ADataType_,
           typename LayoutA,
           typename LayoutB,
           typename LayoutC>
-__global__ void blockwise_gemm_kernel(if_select_t<ADataType_, tf32_t, float, ADataType_>* A,
-                                      if_select_t<BDataType_, tf32_t, float, BDataType_>* B,
+__global__ void blockwise_gemm_kernel(ADataType_* A,
+                                      BDataType_* B,
                                       CDataType* C,
                                       ck_tile::index_t M,
                                       ck_tile::index_t N,
@@ -951,9 +955,8 @@ __global__ void blockwise_gemm_kernel(if_select_t<ADataType_, tf32_t, float, ADa
         static_assert(std::is_same_v<ADataType_, BDataType_>,
                       "ADataType and BDataType must be the same");
     using ADataTypeCompute = ADataType_;
-    // ADataTypeBuf: buffer/storage type (fp32 when tf32)
-    using ADataTypeBuf = if_select_t<ADataType_, tf32_t, float, ADataType_>;
-    using BDataTypeBuf = if_select_t<BDataType_, tf32_t, float, BDataType_>;
+    using ADataTypeBuf     = ADataType_;
+    using BDataTypeBuf     = BDataType_;
 
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int row = idx / N; // Compute row index
@@ -1081,8 +1084,8 @@ template <typename ADataType,
           typename LayoutA,
           typename LayoutB,
           typename LayoutC>
-void reference_gemm_gpu(if_select_t<ADataType, tf32_t, float, ADataType>* a_ptr,
-                        if_select_t<BDataType, tf32_t, float, BDataType>* b_ptr,
+void reference_gemm_gpu(ADataType* a_ptr,
+                        BDataType* b_ptr,
                         CDataType* c_ptr,
                         index_t M,
                         index_t N,
@@ -1109,8 +1112,8 @@ template <typename ADataType,
           typename LayoutA,
           typename LayoutB,
           typename LayoutC>
-void reference_blockwise_gemm_gpu(if_select_t<ADataType, tf32_t, float, ADataType>* a_ptr,
-                                  if_select_t<BDataType, tf32_t, float, BDataType>* b_ptr,
+void reference_blockwise_gemm_gpu(ADataType* a_ptr,
+                                  BDataType* b_ptr,
                                   CDataType* c_ptr,
                                   index_t M,
                                   index_t N,
@@ -1154,8 +1157,8 @@ template <typename ADataType_,
           typename LayoutA,
           typename LayoutB,
           typename LayoutC>
-void reference_batched_gemm_gpu(if_select_t<ADataType_, tf32_t, float, ADataType_>* a_ptr,
-                                if_select_t<BDataType_, tf32_t, float, BDataType_>* b_ptr,
+void reference_batched_gemm_gpu(ADataType_* a_ptr,
+                                BDataType_* b_ptr,
                                 CDataType* c_ptr,
                                 index_t M,
                                 index_t N,
@@ -1168,8 +1171,8 @@ void reference_batched_gemm_gpu(if_select_t<ADataType_, tf32_t, float, ADataType
                                 index_t batch_stride_C,
                                 index_t batch_count)
 {
-    using ADataTypeBuf = if_select_t<ADataType_, tf32_t, float, ADataType_>;
-    using BDataTypeBuf = if_select_t<BDataType_, tf32_t, float, BDataType_>;
+    using ADataTypeBuf = ADataType_;
+    using BDataTypeBuf = BDataType_;
 
     using ADataTypeCompute = ADataType_;
     using BDataTypeCompute = BDataType_;

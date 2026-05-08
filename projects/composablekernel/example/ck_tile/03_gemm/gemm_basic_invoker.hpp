@@ -20,11 +20,10 @@ struct BasicInvoker
     static float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         // ADataTypeCompute: compute type (tf32_t for TF32 mode, used for warp gemm selection)
-        // ADataTypeBuf: buffer/storage type (fp32 when tf32)
         using ADataTypeCompute = ADataType_;
         using BDataTypeCompute = BDataType_;
-        using ADataTypeBuf = ck_tile::if_select_t<ADataType_, ck_tile::tf32_t, float, ADataType_>;
-        using BDataTypeBuf = ck_tile::if_select_t<BDataType_, ck_tile::tf32_t, float, BDataType_>;
+        using ADataTypeBuf     = ADataType_;
+        using BDataTypeBuf     = BDataType_;
 
         if constexpr(std::is_same_v<ADataTypeCompute, ck_tile::tf32_t>)
         {

@@ -1,16 +1,22 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 #pragma once
-#include <sstream>
-#include <gtest/gtest.h>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/core/numeric/math.hpp"
-#include "ck_tile/host/permute_pk_int4.hpp"
+
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <iostream>
+#include <stdexcept>
+#include <tuple>
+#include <type_traits>
+#include <vector>
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -135,9 +141,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
     static constexpr bool Persistent =
         ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
 
-    // TF32 uses tf32_t as compute type but float as buffer/storage type
-    using ADataTypeBuf = ck_tile::if_select_t<ADataType, ck_tile::tf32_t, float, ADataType>;
-    using BDataTypeBuf = ck_tile::if_select_t<BDataType, ck_tile::tf32_t, float, BDataType>;
+    using ADataTypeBuf = ADataType;
+    using BDataTypeBuf = BDataType;
 
     protected:
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
