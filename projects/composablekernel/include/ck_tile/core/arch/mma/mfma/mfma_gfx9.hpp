@@ -51,9 +51,9 @@ struct amdgcn_mma<fp32_t, fp32_t, fp32_t, 32u, 64u, 1u, CtrlFlags, CompilerTarge
         return {__builtin_amdgcn_mfma_f32_32x32x1f32(bit_cast<fp32_t>(aVec),
                                                      bit_cast<fp32_t>(bVec),
                                                      cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+                                                     CtrlFlags::Cbsz,
+                                                     CtrlFlags::Abid,
+                                                     CtrlFlags::Blgp)};
     }
 };
 
@@ -79,9 +79,9 @@ struct amdgcn_mma<fp32_t, fp32_t, fp32_t, 64u, 32u, 1u, CtrlFlags, CompilerTarge
         return {__builtin_amdgcn_mfma_f32_32x32x1f32(bit_cast<fp32_t>(aVec),
                                                      bit_cast<fp32_t>(bVec),
                                                      cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+                                                     CtrlFlags::Cbsz,
+                                                     CtrlFlags::Abid,
+                                                     CtrlFlags::Blgp)};
     }
 };
 
@@ -107,9 +107,9 @@ struct amdgcn_mma<fp32_t, fp32_t, fp32_t, 16u, 64u, 1u, CtrlFlags, CompilerTarge
         return {__builtin_amdgcn_mfma_f32_16x16x1f32(bit_cast<fp32_t>(aVec),
                                                      bit_cast<fp32_t>(bVec),
                                                      cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+                                                     CtrlFlags::Cbsz,
+                                                     CtrlFlags::Abid,
+                                                     CtrlFlags::Blgp)};
     }
 };
 
@@ -135,9 +135,9 @@ struct amdgcn_mma<fp32_t, fp32_t, fp32_t, 64u, 16u, 1u, CtrlFlags, CompilerTarge
         return {__builtin_amdgcn_mfma_f32_16x16x1f32(bit_cast<fp32_t>(aVec),
                                                      bit_cast<fp32_t>(bVec),
                                                      cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+                                                     CtrlFlags::Cbsz,
+                                                     CtrlFlags::Abid,
+                                                     CtrlFlags::Blgp)};
     }
 };
 
@@ -163,9 +163,9 @@ struct amdgcn_mma<fp32_t, fp32_t, fp32_t, 4u, 64u, 1u, CtrlFlags, CompilerTarget
         return {__builtin_amdgcn_mfma_f32_4x4x1f32(bit_cast<fp32_t>(aVec),
                                                    bit_cast<fp32_t>(bVec),
                                                    cVec,
-                                                   static_cast<int>(CtrlFlags::Cbsz),
-                                                   static_cast<int>(CtrlFlags::Abid),
-                                                   static_cast<int>(CtrlFlags::Blgp))};
+                                                   CtrlFlags::Cbsz,
+                                                   CtrlFlags::Abid,
+                                                   CtrlFlags::Blgp)};
     }
 };
 
@@ -191,9 +191,9 @@ struct amdgcn_mma<fp32_t, fp32_t, fp32_t, 64u, 4u, 1u, CtrlFlags, CompilerTarget
         return {__builtin_amdgcn_mfma_f32_4x4x1f32(bit_cast<fp32_t>(aVec),
                                                    bit_cast<fp32_t>(bVec),
                                                    cVec,
-                                                   static_cast<int>(CtrlFlags::Cbsz),
-                                                   static_cast<int>(CtrlFlags::Abid),
-                                                   static_cast<int>(CtrlFlags::Blgp))};
+                                                   CtrlFlags::Cbsz,
+                                                   CtrlFlags::Abid,
+                                                   CtrlFlags::Blgp)};
     }
 };
 
@@ -219,9 +219,9 @@ struct amdgcn_mma<fp32_t, fp32_t, fp32_t, 32u, 32u, 2u, CtrlFlags, CompilerTarge
         return {__builtin_amdgcn_mfma_f32_32x32x2f32(bit_cast<fp32_t>(aVec),
                                                      bit_cast<fp32_t>(bVec),
                                                      cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+                                                     CtrlFlags::Cbsz,
+                                                     CtrlFlags::Abid,
+                                                     CtrlFlags::Blgp)};
     }
 };
 
@@ -247,9 +247,9 @@ struct amdgcn_mma<fp32_t, fp32_t, fp32_t, 16u, 16u, 4u, CtrlFlags, CompilerTarge
         return {__builtin_amdgcn_mfma_f32_16x16x4f32(bit_cast<fp32_t>(aVec),
                                                      bit_cast<fp32_t>(bVec),
                                                      cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+                                                     CtrlFlags::Cbsz,
+                                                     CtrlFlags::Abid,
+                                                     CtrlFlags::Blgp)};
     }
 };
 
@@ -272,12 +272,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 32u, 64u, 4u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x4f16(aVec,
-                                                     bVec,
-                                                     cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x4f16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -300,12 +296,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 64u, 32u, 4u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x4f16(aVec,
-                                                     bVec,
-                                                     cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x4f16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -328,12 +320,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 64u, 4u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x4f16(aVec,
-                                                     bVec,
-                                                     cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x4f16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -356,12 +344,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 64u, 16u, 4u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x4f16(aVec,
-                                                     bVec,
-                                                     cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x4f16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -384,12 +368,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 4u, 64u, 4u, CtrlFlags, CompilerTarget
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_4x4x4f16(aVec,
-                                                   bVec,
-                                                   cVec,
-                                                   static_cast<int>(CtrlFlags::Cbsz),
-                                                   static_cast<int>(CtrlFlags::Abid),
-                                                   static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_4x4x4f16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -412,12 +392,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 64u, 4u, 4u, CtrlFlags, CompilerTarget
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_4x4x4f16(aVec,
-                                                   bVec,
-                                                   cVec,
-                                                   static_cast<int>(CtrlFlags::Cbsz),
-                                                   static_cast<int>(CtrlFlags::Abid),
-                                                   static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_4x4x4f16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -440,12 +416,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 32u, 32u, 8u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x8f16(aVec,
-                                                     bVec,
-                                                     cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x8f16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -468,12 +440,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarg
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x16f16(aVec,
-                                                      bVec,
-                                                      cVec,
-                                                      static_cast<int>(CtrlFlags::Cbsz),
-                                                      static_cast<int>(CtrlFlags::Abid),
-                                                      static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x16f16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -499,9 +467,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 32u, 64u, 4u, CtrlFlags, CompilerTarg
         return {__builtin_amdgcn_mfma_i32_32x32x4i8(bit_cast<int32_t>(aVec),
                                                     bit_cast<int32_t>(bVec),
                                                     cVec,
-                                                    static_cast<int>(CtrlFlags::Cbsz),
-                                                    static_cast<int>(CtrlFlags::Abid),
-                                                    static_cast<int>(CtrlFlags::Blgp))};
+                                                    CtrlFlags::Cbsz,
+                                                    CtrlFlags::Abid,
+                                                    CtrlFlags::Blgp)};
     }
 };
 
@@ -527,9 +495,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 64u, 32u, 4u, CtrlFlags, CompilerTarg
         return {__builtin_amdgcn_mfma_i32_32x32x4i8(bit_cast<int32_t>(aVec),
                                                     bit_cast<int32_t>(bVec),
                                                     cVec,
-                                                    static_cast<int>(CtrlFlags::Cbsz),
-                                                    static_cast<int>(CtrlFlags::Abid),
-                                                    static_cast<int>(CtrlFlags::Blgp))};
+                                                    CtrlFlags::Cbsz,
+                                                    CtrlFlags::Abid,
+                                                    CtrlFlags::Blgp)};
     }
 };
 
@@ -555,9 +523,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 64u, 4u, CtrlFlags, CompilerTarg
         return {__builtin_amdgcn_mfma_i32_16x16x4i8(bit_cast<int32_t>(aVec),
                                                     bit_cast<int32_t>(bVec),
                                                     cVec,
-                                                    static_cast<int>(CtrlFlags::Cbsz),
-                                                    static_cast<int>(CtrlFlags::Abid),
-                                                    static_cast<int>(CtrlFlags::Blgp))};
+                                                    CtrlFlags::Cbsz,
+                                                    CtrlFlags::Abid,
+                                                    CtrlFlags::Blgp)};
     }
 };
 
@@ -583,9 +551,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 64u, 16u, 4u, CtrlFlags, CompilerTarg
         return {__builtin_amdgcn_mfma_i32_16x16x4i8(bit_cast<int32_t>(aVec),
                                                     bit_cast<int32_t>(bVec),
                                                     cVec,
-                                                    static_cast<int>(CtrlFlags::Cbsz),
-                                                    static_cast<int>(CtrlFlags::Abid),
-                                                    static_cast<int>(CtrlFlags::Blgp))};
+                                                    CtrlFlags::Cbsz,
+                                                    CtrlFlags::Abid,
+                                                    CtrlFlags::Blgp)};
     }
 };
 
@@ -611,9 +579,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 4u, 64u, 4u, CtrlFlags, CompilerTarge
         return {__builtin_amdgcn_mfma_i32_4x4x4i8(bit_cast<int32_t>(aVec),
                                                   bit_cast<int32_t>(bVec),
                                                   cVec,
-                                                  static_cast<int>(CtrlFlags::Cbsz),
-                                                  static_cast<int>(CtrlFlags::Abid),
-                                                  static_cast<int>(CtrlFlags::Blgp))};
+                                                  CtrlFlags::Cbsz,
+                                                  CtrlFlags::Abid,
+                                                  CtrlFlags::Blgp)};
     }
 };
 
@@ -639,9 +607,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 64u, 4u, 4u, CtrlFlags, CompilerTarge
         return {__builtin_amdgcn_mfma_i32_4x4x4i8(bit_cast<int32_t>(aVec),
                                                   bit_cast<int32_t>(bVec),
                                                   cVec,
-                                                  static_cast<int>(CtrlFlags::Cbsz),
-                                                  static_cast<int>(CtrlFlags::Abid),
-                                                  static_cast<int>(CtrlFlags::Blgp))};
+                                                  CtrlFlags::Cbsz,
+                                                  CtrlFlags::Abid,
+                                                  CtrlFlags::Blgp)};
     }
 };
 
@@ -667,9 +635,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 32u, 32u, 8u, CtrlFlags, CompilerTarg
         return {__builtin_amdgcn_mfma_i32_32x32x8i8(bit_cast<int32_t>(aVec),
                                                     bit_cast<int32_t>(bVec),
                                                     cVec,
-                                                    static_cast<int>(CtrlFlags::Cbsz),
-                                                    static_cast<int>(CtrlFlags::Abid),
-                                                    static_cast<int>(CtrlFlags::Blgp))};
+                                                    CtrlFlags::Cbsz,
+                                                    CtrlFlags::Abid,
+                                                    CtrlFlags::Blgp)};
     }
 };
 
@@ -695,9 +663,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 16u, CtrlFlags, CompilerTar
         return {__builtin_amdgcn_mfma_i32_16x16x16i8(bit_cast<int32_t>(aVec),
                                                      bit_cast<int32_t>(bVec),
                                                      cVec,
-                                                     static_cast<int>(CtrlFlags::Cbsz),
-                                                     static_cast<int>(CtrlFlags::Abid),
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+                                                     CtrlFlags::Cbsz,
+                                                     CtrlFlags::Abid,
+                                                     CtrlFlags::Blgp)};
     }
 };
 
@@ -720,12 +688,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 32u, 64u, 2u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x2bf16(aVec,
-                                                      bVec,
-                                                      cVec,
-                                                      static_cast<int>(CtrlFlags::Cbsz),
-                                                      static_cast<int>(CtrlFlags::Abid),
-                                                      static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x2bf16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -748,12 +712,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 64u, 32u, 2u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x2bf16(aVec,
-                                                      bVec,
-                                                      cVec,
-                                                      static_cast<int>(CtrlFlags::Cbsz),
-                                                      static_cast<int>(CtrlFlags::Abid),
-                                                      static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x2bf16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -776,12 +736,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 64u, 2u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x2bf16(aVec,
-                                                      bVec,
-                                                      cVec,
-                                                      static_cast<int>(CtrlFlags::Cbsz),
-                                                      static_cast<int>(CtrlFlags::Abid),
-                                                      static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x2bf16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -804,12 +760,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 64u, 16u, 2u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x2bf16(aVec,
-                                                      bVec,
-                                                      cVec,
-                                                      static_cast<int>(CtrlFlags::Cbsz),
-                                                      static_cast<int>(CtrlFlags::Abid),
-                                                      static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x2bf16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -832,12 +784,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 4u, 64u, 2u, CtrlFlags, CompilerTarget
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_4x4x2bf16(aVec,
-                                                    bVec,
-                                                    cVec,
-                                                    static_cast<int>(CtrlFlags::Cbsz),
-                                                    static_cast<int>(CtrlFlags::Abid),
-                                                    static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_4x4x2bf16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -860,12 +808,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 64u, 4u, 2u, CtrlFlags, CompilerTarget
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_4x4x2bf16(aVec,
-                                                    bVec,
-                                                    cVec,
-                                                    static_cast<int>(CtrlFlags::Cbsz),
-                                                    static_cast<int>(CtrlFlags::Abid),
-                                                    static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_4x4x2bf16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -888,12 +832,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 32u, 32u, 4u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x4bf16(aVec,
-                                                      bVec,
-                                                      cVec,
-                                                      static_cast<int>(CtrlFlags::Cbsz),
-                                                      static_cast<int>(CtrlFlags::Abid),
-                                                      static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x4bf16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -916,12 +856,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 16u, 8u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x8bf16(aVec,
-                                                      bVec,
-                                                      cVec,
-                                                      static_cast<int>(CtrlFlags::Cbsz),
-                                                      static_cast<int>(CtrlFlags::Abid),
-                                                      static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x8bf16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -944,12 +880,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 32u, 64u, 4u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x4bf16_1k(aVec,
-                                                         bVec,
-                                                         cVec,
-                                                         static_cast<int>(CtrlFlags::Cbsz),
-                                                         static_cast<int>(CtrlFlags::Abid),
-                                                         static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x4bf16_1k(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -972,12 +904,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 64u, 32u, 4u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x4bf16_1k(aVec,
-                                                         bVec,
-                                                         cVec,
-                                                         static_cast<int>(CtrlFlags::Cbsz),
-                                                         static_cast<int>(CtrlFlags::Abid),
-                                                         static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x4bf16_1k(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1000,12 +928,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 64u, 4u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x4bf16_1k(aVec,
-                                                         bVec,
-                                                         cVec,
-                                                         static_cast<int>(CtrlFlags::Cbsz),
-                                                         static_cast<int>(CtrlFlags::Abid),
-                                                         static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x4bf16_1k(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1028,12 +952,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 64u, 16u, 4u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x4bf16_1k(aVec,
-                                                         bVec,
-                                                         cVec,
-                                                         static_cast<int>(CtrlFlags::Cbsz),
-                                                         static_cast<int>(CtrlFlags::Abid),
-                                                         static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x4bf16_1k(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1056,12 +976,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 4u, 64u, 4u, CtrlFlags, CompilerTarget
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_4x4x4bf16_1k(aVec,
-                                                       bVec,
-                                                       cVec,
-                                                       static_cast<int>(CtrlFlags::Cbsz),
-                                                       static_cast<int>(CtrlFlags::Abid),
-                                                       static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_4x4x4bf16_1k(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1084,12 +1000,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 64u, 4u, 4u, CtrlFlags, CompilerTarget
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_4x4x4bf16_1k(aVec,
-                                                       bVec,
-                                                       cVec,
-                                                       static_cast<int>(CtrlFlags::Cbsz),
-                                                       static_cast<int>(CtrlFlags::Abid),
-                                                       static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_4x4x4bf16_1k(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1112,12 +1024,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 32u, 32u, 8u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x8bf16_1k(aVec,
-                                                         bVec,
-                                                         cVec,
-                                                         static_cast<int>(CtrlFlags::Cbsz),
-                                                         static_cast<int>(CtrlFlags::Abid),
-                                                         static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1140,12 +1048,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarg
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x16bf16_1k(aVec,
-                                                          bVec,
-                                                          cVec,
-                                                          static_cast<int>(CtrlFlags::Cbsz),
-                                                          static_cast<int>(CtrlFlags::Abid),
-                                                          static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x16bf16_1k(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1173,9 +1077,9 @@ struct amdgcn_mma<fp64_t, fp64_t, fp64_t, 16u, 16u, 4u, CtrlFlags, CompilerTarge
         return {__builtin_amdgcn_mfma_f64_16x16x4f64(bit_cast<fp64_t>(aVec),
                                                      bit_cast<fp64_t>(bVec),
                                                      cVec,
-                                                     0, // CBSZ ignored for f64
-                                                     0, // ABID ignored for f64
-                                                     static_cast<int>(CtrlFlags::Blgp))};
+                                                     CtrlFlags::Cbsz, // CBSZ ignored for f64
+                                                     CtrlFlags::Abid, // ABID ignored for f64
+                                                     CtrlFlags::Blgp)};
     }
 };
 
@@ -1201,9 +1105,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 32u, CtrlFlags, CompilerTar
         return {__builtin_amdgcn_mfma_i32_16x16x32_i8(bit_cast<int64_t>(aVec),
                                                       bit_cast<int64_t>(bVec),
                                                       cVec,
-                                                      static_cast<int>(CtrlFlags::Cbsz),
-                                                      static_cast<int>(CtrlFlags::Abid),
-                                                      static_cast<int>(CtrlFlags::Blgp))};
+                                                      CtrlFlags::Cbsz,
+                                                      CtrlFlags::Abid,
+                                                      CtrlFlags::Blgp)};
     }
 };
 
@@ -1229,9 +1133,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 32u, 32u, 16u, CtrlFlags, CompilerTar
         return {__builtin_amdgcn_mfma_i32_32x32x16_i8(bit_cast<int64_t>(aVec),
                                                       bit_cast<int64_t>(bVec),
                                                       cVec,
-                                                      static_cast<int>(CtrlFlags::Cbsz),
-                                                      static_cast<int>(CtrlFlags::Abid),
-                                                      static_cast<int>(CtrlFlags::Blgp))};
+                                                      CtrlFlags::Cbsz,
+                                                      CtrlFlags::Abid,
+                                                      CtrlFlags::Blgp)};
     }
 };
 
@@ -1255,12 +1159,8 @@ struct amdgcn_mma<tf32_t, tf32_t, fp32_t, 16u, 16u, 8u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x8_xf32(aVec,
-                                                       bVec,
-                                                       cVec,
-                                                       static_cast<int>(CtrlFlags::Cbsz),
-                                                       static_cast<int>(CtrlFlags::Abid),
-                                                       static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x8_xf32(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1284,12 +1184,8 @@ struct amdgcn_mma<tf32_t, tf32_t, fp32_t, 32u, 32u, 4u, CtrlFlags, CompilerTarge
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x4_xf32(aVec,
-                                                       bVec,
-                                                       cVec,
-                                                       static_cast<int>(CtrlFlags::Cbsz),
-                                                       static_cast<int>(CtrlFlags::Abid),
-                                                       static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x4_xf32(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1315,9 +1211,9 @@ struct amdgcn_mma<bf8_t, bf8_t, fp32_t, 16u, 16u, 32u, CtrlFlags, CompilerTarget
         return {__builtin_amdgcn_mfma_f32_16x16x32_bf8_bf8(bit_cast<int64_t>(aVec),
                                                            bit_cast<int64_t>(bVec),
                                                            cVec,
-                                                           static_cast<int>(CtrlFlags::Cbsz),
-                                                           static_cast<int>(CtrlFlags::Abid),
-                                                           static_cast<int>(CtrlFlags::Blgp))};
+                                                           CtrlFlags::Cbsz,
+                                                           CtrlFlags::Abid,
+                                                           CtrlFlags::Blgp)};
     }
 };
 
@@ -1343,9 +1239,9 @@ struct amdgcn_mma<bf8_t, fp8_t, fp32_t, 16u, 16u, 32u, CtrlFlags, CompilerTarget
         return {__builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8(bit_cast<int64_t>(aVec),
                                                            bit_cast<int64_t>(bVec),
                                                            cVec,
-                                                           static_cast<int>(CtrlFlags::Cbsz),
-                                                           static_cast<int>(CtrlFlags::Abid),
-                                                           static_cast<int>(CtrlFlags::Blgp))};
+                                                           CtrlFlags::Cbsz,
+                                                           CtrlFlags::Abid,
+                                                           CtrlFlags::Blgp)};
     }
 };
 
@@ -1371,9 +1267,9 @@ struct amdgcn_mma<fp8_t, bf8_t, fp32_t, 16u, 16u, 32u, CtrlFlags, CompilerTarget
         return {__builtin_amdgcn_mfma_f32_16x16x32_fp8_bf8(bit_cast<int64_t>(aVec),
                                                            bit_cast<int64_t>(bVec),
                                                            cVec,
-                                                           static_cast<int>(CtrlFlags::Cbsz),
-                                                           static_cast<int>(CtrlFlags::Abid),
-                                                           static_cast<int>(CtrlFlags::Blgp))};
+                                                           CtrlFlags::Cbsz,
+                                                           CtrlFlags::Abid,
+                                                           CtrlFlags::Blgp)};
     }
 };
 
@@ -1399,9 +1295,9 @@ struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 16u, 16u, 32u, CtrlFlags, CompilerTarget
         return {__builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8(bit_cast<int64_t>(aVec),
                                                            bit_cast<int64_t>(bVec),
                                                            cVec,
-                                                           static_cast<int>(CtrlFlags::Cbsz),
-                                                           static_cast<int>(CtrlFlags::Abid),
-                                                           static_cast<int>(CtrlFlags::Blgp))};
+                                                           CtrlFlags::Cbsz,
+                                                           CtrlFlags::Abid,
+                                                           CtrlFlags::Blgp)};
     }
 };
 
@@ -1427,9 +1323,9 @@ struct amdgcn_mma<bf8_t, bf8_t, fp32_t, 32u, 32u, 16u, CtrlFlags, CompilerTarget
         return {__builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8(bit_cast<int64_t>(aVec),
                                                            bit_cast<int64_t>(bVec),
                                                            cVec,
-                                                           static_cast<int>(CtrlFlags::Cbsz),
-                                                           static_cast<int>(CtrlFlags::Abid),
-                                                           static_cast<int>(CtrlFlags::Blgp))};
+                                                           CtrlFlags::Cbsz,
+                                                           CtrlFlags::Abid,
+                                                           CtrlFlags::Blgp)};
     }
 };
 
@@ -1455,9 +1351,9 @@ struct amdgcn_mma<bf8_t, fp8_t, fp32_t, 32u, 32u, 16u, CtrlFlags, CompilerTarget
         return {__builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8(bit_cast<int64_t>(aVec),
                                                            bit_cast<int64_t>(bVec),
                                                            cVec,
-                                                           static_cast<int>(CtrlFlags::Cbsz),
-                                                           static_cast<int>(CtrlFlags::Abid),
-                                                           static_cast<int>(CtrlFlags::Blgp))};
+                                                           CtrlFlags::Cbsz,
+                                                           CtrlFlags::Abid,
+                                                           CtrlFlags::Blgp)};
     }
 };
 
@@ -1483,9 +1379,9 @@ struct amdgcn_mma<fp8_t, bf8_t, fp32_t, 32u, 32u, 16u, CtrlFlags, CompilerTarget
         return {__builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8(bit_cast<int64_t>(aVec),
                                                            bit_cast<int64_t>(bVec),
                                                            cVec,
-                                                           static_cast<int>(CtrlFlags::Cbsz),
-                                                           static_cast<int>(CtrlFlags::Abid),
-                                                           static_cast<int>(CtrlFlags::Blgp))};
+                                                           CtrlFlags::Cbsz,
+                                                           CtrlFlags::Abid,
+                                                           CtrlFlags::Blgp)};
     }
 };
 
@@ -1511,9 +1407,9 @@ struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 32u, 32u, 16u, CtrlFlags, CompilerTarget
         return {__builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8(bit_cast<int64_t>(aVec),
                                                            bit_cast<int64_t>(bVec),
                                                            cVec,
-                                                           static_cast<int>(CtrlFlags::Cbsz),
-                                                           static_cast<int>(CtrlFlags::Abid),
-                                                           static_cast<int>(CtrlFlags::Blgp))};
+                                                           CtrlFlags::Cbsz,
+                                                           CtrlFlags::Abid,
+                                                           CtrlFlags::Blgp)};
     }
 };
 
@@ -1536,12 +1432,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 32u, CtrlFlags, CompilerTarg
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x32_f16(aVec,
-                                                       bVec,
-                                                       cVec,
-                                                       static_cast<int>(CtrlFlags::Cbsz),
-                                                       static_cast<int>(CtrlFlags::Abid),
-                                                       static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x32_f16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1564,12 +1456,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 16u, 32u, CtrlFlags, CompilerTarg
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x32_bf16(aVec,
-                                                        bVec,
-                                                        cVec,
-                                                        static_cast<int>(CtrlFlags::Cbsz),
-                                                        static_cast<int>(CtrlFlags::Abid),
-                                                        static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_16x16x32_bf16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1592,12 +1480,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 32u, 32u, 16u, CtrlFlags, CompilerTarg
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x16_f16(aVec,
-                                                       bVec,
-                                                       cVec,
-                                                       static_cast<int>(CtrlFlags::Cbsz),
-                                                       static_cast<int>(CtrlFlags::Abid),
-                                                       static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x16_f16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1620,12 +1504,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 32u, 32u, 16u, CtrlFlags, CompilerTarg
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_mfma_f32_32x32x16_bf16(aVec,
-                                                        bVec,
-                                                        cVec,
-                                                        static_cast<int>(CtrlFlags::Cbsz),
-                                                        static_cast<int>(CtrlFlags::Abid),
-                                                        static_cast<int>(CtrlFlags::Blgp))};
+        return {__builtin_amdgcn_mfma_f32_32x32x16_bf16(
+            aVec, bVec, cVec, CtrlFlags::Cbsz, CtrlFlags::Abid, CtrlFlags::Blgp)};
     }
 };
 
@@ -1651,9 +1531,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 64u, CtrlFlags, CompilerTar
         return {__builtin_amdgcn_mfma_i32_16x16x64_i8(bit_cast<int32x4_t>(aVec),
                                                       bit_cast<int32x4_t>(bVec),
                                                       cVec,
-                                                      static_cast<int>(CtrlFlags::Cbsz),
-                                                      static_cast<int>(CtrlFlags::Abid),
-                                                      static_cast<int>(CtrlFlags::Blgp))};
+                                                      CtrlFlags::Cbsz,
+                                                      CtrlFlags::Abid,
+                                                      CtrlFlags::Blgp)};
     }
 };
 
@@ -1679,9 +1559,9 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 32u, 32u, 32u, CtrlFlags, CompilerTar
         return {__builtin_amdgcn_mfma_i32_32x32x32_i8(bit_cast<int32x4_t>(aVec),
                                                       bit_cast<int32x4_t>(bVec),
                                                       cVec,
-                                                      static_cast<int>(CtrlFlags::Cbsz),
-                                                      static_cast<int>(CtrlFlags::Abid),
-                                                      static_cast<int>(CtrlFlags::Blgp))};
+                                                      CtrlFlags::Cbsz,
+                                                      CtrlFlags::Abid,
+                                                      CtrlFlags::Blgp)};
     }
 };
 

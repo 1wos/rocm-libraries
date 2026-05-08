@@ -3,6 +3,13 @@
 
 #pragma once
 
+#include "ck_tile/core/numeric/integer.hpp"
+
+#include <type_traits>
+#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
+#include <concepts>
+#endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
+
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -50,13 +57,12 @@ static constexpr bool is_mma_op_mfma_v = is_mma_op_mfma<MmaOp>::value;
  */
 struct DefaultMfmaCtrlFlags
 {
-    static constexpr uint32_t Cbsz = 0; // CBSZ flag, default 0
-    static constexpr uint32_t Abid = 0; // ABID flag, default 0
-    static constexpr uint32_t Blgp = 0; // BLGP flag, default 0
+    static constexpr int32_t Cbsz = 0; // CBSZ flag, default 0
+    static constexpr int32_t Abid = 0; // ABID flag, default 0
+    static constexpr int32_t Blgp = 0; // BLGP flag, default 0
 };
 
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-#include <concepts>
 
 /**
  * @concept CtrlFlagsGfx9I
@@ -65,9 +71,9 @@ struct DefaultMfmaCtrlFlags
 template <typename CtrlFlags>
 concept CtrlFlagsGfx9I = requires(CtrlFlags ctrlFlags) {
     // Flag members for Gfx9 MFMA instructions
-    { CtrlFlags::Cbsz } -> std::convertible_to<int>;
-    { CtrlFlags::Abid } -> std::convertible_to<int>;
-    { CtrlFlags::Blgp } -> std::convertible_to<int>;
+    { CtrlFlags::Cbsz } -> std::convertible_to<int32_t>;
+    { CtrlFlags::Abid } -> std::convertible_to<int32_t>;
+    { CtrlFlags::Blgp } -> std::convertible_to<int32_t>;
 };
 
 #endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
