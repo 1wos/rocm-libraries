@@ -5,6 +5,26 @@
 # (hipblaslt CMake) builds.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     cmake_minimum_required(VERSION 3.25)
+
+    if(NOT CMAKE_CXX_COMPILER AND NOT DEFINED ENV{CXX})
+        if(NOT DEFINED ENV{ROCM_PATH})
+            set(_ROCM_PATH "/opt/rocm")
+        else()
+            set(_ROCM_PATH "$ENV{ROCM_PATH}")
+        endif()
+        set(_AMDCLANG "${_ROCM_PATH}/lib/llvm/bin/amdclang++")
+        if(WIN32)
+            set(_AMDCLANG "${_AMDCLANG}.exe")
+        endif()
+        if(NOT EXISTS "${_AMDCLANG}")
+            message(FATAL_ERROR
+                "amdclang++ not found at ${_AMDCLANG}\n"
+                "Either install the ROCm SDK, set ROCM_PATH, or set CXX/CMAKE_CXX_COMPILER to your compiler.")
+        endif()
+        set(CMAKE_CXX_COMPILER "${_AMDCLANG}")
+        set(CMAKE_C_COMPILER "${_ROCM_PATH}/lib/llvm/bin/amdclang")
+    endif()
+
     project(rocisa LANGUAGES CXX)
     set(ROCISA_STANDALONE ON)
 else()
