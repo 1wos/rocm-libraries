@@ -17789,12 +17789,22 @@ class KernelWriterAssembly(KernelWriter):
     incSgprName = f"tdm{tcA}{tcB}Incs"
     group0Name = f"tdm{tcA}Group0"
 
-    with self.allocTmpSgpr(1) as tmpSgprRes:
-      tmpSgpr = tmpSgprRes.idx
-      mod.add(SMulI32(dst=sgpr(tmpSgpr), src0=sgpr("StreamKLocalStart"), src1=sgpr(incSgprName),
-                       comment="StreamK K-offset = localStart * increment"))
-      mod.add(SAddU32(dst=sgpr(f"{group0Name}+2"), src0=sgpr(f"{group0Name}+2"), src1=sgpr(tmpSgpr),
-                       comment="Apply StreamK K-offset to TDM global addr"))
+    if "MXS" in tcA or "MXS" in tcB:
+      with self.allocTmpSgpr(2) as tmpSgprRes:
+        tmpSgpr = tmpSgprRes.idx
+        mod.addModuleAsFlatItems(self.s_mul_u64_u32(sgpr(tmpSgpr), sgpr(tmpSgpr+1), sgpr("StreamKLocalStart"), sgpr(incSgprName),
+                                                   comment="StreamK K-offset = localStart * MX increment"))
+        mod.add(SAddU32(dst=sgpr(f"{group0Name}+2"), src0=sgpr(f"{group0Name}+2"), src1=sgpr(tmpSgpr),
+                         comment="Apply StreamK K-offset to TDM MX global addr"))
+        mod.add(SAddCU32(dst=sgpr(f"{group0Name}+3"), src0=sgpr(f"{group0Name}+3"), src1=sgpr(tmpSgpr+1),
+                          comment="Apply StreamK K-offset to TDM MX global addr hi"))
+    else:
+      with self.allocTmpSgpr(1) as tmpSgprRes:
+        tmpSgpr = tmpSgprRes.idx
+        mod.add(SMulI32(dst=sgpr(tmpSgpr), src0=sgpr("StreamKLocalStart"), src1=sgpr(incSgprName),
+                         comment="StreamK K-offset = localStart * increment"))
+        mod.add(SAddU32(dst=sgpr(f"{group0Name}+2"), src0=sgpr(f"{group0Name}+2"), src1=sgpr(tmpSgpr),
+                         comment="Apply StreamK K-offset to TDM global addr"))
 
     return mod
 
@@ -17822,17 +17832,41 @@ class KernelWriterAssembly(KernelWriter):
 
     return mod
 
+  def tdmMxSwizzledKIterIncrement(self, kernel, tP, dst) -> Module:
+    mod = Module("TDM MX swizzled K-iteration increment")
+    tc: str = tP["tensorChar"]
+    assert "MXS" in tc
+    scaleDepthU = kernel["DepthU"] // kernel["ProblemType"][f"MXBlock{tc[3]}"]
+    incElements = int(scaleDepthU * tP["bpeGR"])
+    sizeName = "Size%s" % INDEX_CHARS[tP["idx"]]
+    mod.add(SMulI32(dst=sgpr(dst), src0=sgpr(sizeName), src1=incElements,
+                    comment=f"{tc} StreamK/TDM increment = {sizeName} * scaleDepthU({scaleDepthU}) * bpe({tP['bpeGR']})"))
+    return mod
+
   def tdmSetupIncrementWaveSeparated(self, kernel, tpA, tpB) -> Module:
     mod = Module()
     tcA: str = tpA["tensorChar"]
     tcB: str = tpB["tensorChar"]
     wavelen: int = kernel["WavefrontSize"]
     incSgprName = f"tdm{tcA}{tcB}Incs"
-    mod.add(VReadfirstlaneB32(sgpr(incSgprName), vgpr("Serial"), "first tId"))
-    mod.add(SLShiftRightB32(sgpr(incSgprName), ceil(log2(wavelen)), sgpr(incSgprName), "wId=fTid // wavelen"))
-    mod.add(SBitcmp1B32(sgpr(incSgprName), 0, "Check parity of wId"))
-    #TODO: should not directly use GRIA and GRIB
-    mod.add(SCSelectB32(sgpr(incSgprName), sgpr(f"GlobalReadIncs{tcB}"), sgpr(f"GlobalReadIncs{tcA}")))
+    isMXS = "MXS" in tcA or "MXS" in tcB
+    if isMXS:
+      assert "MXS" in tcA and "MXS" in tcB
+      with self.allocTmpSgpr(2) as tmpSgprRes:
+        incA = tmpSgprRes.idx
+        incB = tmpSgprRes.idx + 1
+        mod.add(self.tdmMxSwizzledKIterIncrement(kernel, tpA, incA))
+        mod.add(self.tdmMxSwizzledKIterIncrement(kernel, tpB, incB))
+        mod.add(VReadfirstlaneB32(sgpr(incSgprName), vgpr("Serial"), "first tId"))
+        mod.add(SLShiftRightB32(sgpr(incSgprName), ceil(log2(wavelen)), sgpr(incSgprName), "wId=fTid // wavelen"))
+        mod.add(SBitcmp1B32(sgpr(incSgprName), 0, "Check parity of wId"))
+        mod.add(SCSelectB32(sgpr(incSgprName), sgpr(incB), sgpr(incA)))
+    else:
+      mod.add(VReadfirstlaneB32(sgpr(incSgprName), vgpr("Serial"), "first tId"))
+      mod.add(SLShiftRightB32(sgpr(incSgprName), ceil(log2(wavelen)), sgpr(incSgprName), "wId=fTid // wavelen"))
+      mod.add(SBitcmp1B32(sgpr(incSgprName), 0, "Check parity of wId"))
+      #TODO: should not directly use GRIA and GRIB
+      mod.add(SCSelectB32(sgpr(incSgprName), sgpr(f"GlobalReadIncs{tcB}"), sgpr(f"GlobalReadIncs{tcA}")))
     return mod
 
   def resetTDMDescriptorForTail(self, kernel: Mapping, tP: Mapping, tmpSgprWaveOffset = None) -> Module:
