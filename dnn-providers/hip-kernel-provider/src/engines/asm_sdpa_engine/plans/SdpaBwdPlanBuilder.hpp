@@ -56,6 +56,10 @@ enum class PipelineStage
     DQ_CONVERT
 };
 
+// Value stored in the bf16_cvt CSV column for FP16 rows (where rounding mode
+// is not applicable). Shared between the builder and its unit tests.
+inline constexpr int BF16_CVT_FP16_SENTINEL = 3;
+
 // Resolves a registry row matching the supplied dispatch tuple. Returns the
 // composite key (arch + knl_name) on a hit, or an empty string when no row
 // in the chosen registry matches. The bf16Cvt argument is the integer the
@@ -72,15 +76,6 @@ std::string lookupKernelNameKey(PipelineStage stage,
                                 int pddv,
                                 int mode,
                                 int bf16Cvt);
-
-// pssk = "padded sequence length K": 1 when seqLenKv is not a clean multiple
-// of the K/V tile size for the chosen kernel, else 0. tsKv == 0 returns 1
-// (treat unresolved tile as needing the padded path).
-int computePssk(unsigned int seqLenKv, unsigned int tsKv);
-
-// pddv = "padded D_v": 1 when headDimV does not match the kernel's fast-path
-// alignment (128 in AITER's selection logic), else 0.
-int computePddv(unsigned int headDimV);
 
 } // namespace bwd_dispatch
 

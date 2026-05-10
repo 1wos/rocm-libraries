@@ -59,24 +59,6 @@ auto createSdpaBwdGraph(const std::vector<int64_t>& dims = {4, 8, 256, 128},
                                                                causalMask);
 }
 
-// Build a Q/K/V graph with arbitrary head dim D_qk = D_v across all tensors.
-// Mirrors createSdpaBwdGraph but allows independent control over head dim.
-auto createSdpaBwdGraphWithHdim(int64_t batch,
-                                int64_t numHeads,
-                                int64_t seqLen,
-                                int64_t headDim,
-                                hipdnn_flatbuffers_sdk::data_objects::DataType dataType
-                                = hipdnn_flatbuffers_sdk::data_objects::DataType::BFLOAT16,
-                                bool causalMask = false)
-{
-    return createSdpaBwdGraph({batch, numHeads, seqLen, headDim},
-                              dataType,
-                              /*withScale=*/false,
-                              /*alibiMask=*/false,
-                              /*paddingMask=*/false,
-                              causalMask);
-}
-
 TEST_F(TestSdpaBwdPlanBuilder, IsApplicableSdpaBwdVariations)
 {
     using namespace hipdnn_flatbuffers_sdk::data_objects;
@@ -188,7 +170,7 @@ constexpr int PDDV_ON = 1;
 constexpr int PSSK_OFF = 0;
 constexpr int PDDV_OFF = 0;
 constexpr int BF16_CVT_RTNE = 0; // RoundingMode::RTNE
-constexpr int BF16_CVT_FP16_SENTINEL = 3; // CSV sentinel for fp16 rows
+using asm_sdpa_engine::bwd_dispatch::BF16_CVT_FP16_SENTINEL;
 } // namespace
 
 // POC config: hd128 / bf16 / NO_MASK / BATCH must still resolve across all
@@ -321,6 +303,59 @@ TEST(SdpaBwdRegistryLookup, RegistryLookup_Hd192Bf16CausalBatch)
     EXPECT_FALSE(odoKey.empty()) << "hd192 bf16 odo lookup should resolve";
 }
 
+// gfx950 BF16 rows store bf16_cvt=3 (the FP16 sentinel) regardless of the
+// rounding mode the caller asked for, because gfx950 ships only one kernel
+// per (dtype, hdim, mask, atomic, pssk, pddv, mode) tuple.  findKey must
+// skip the bf16_cvt comparison on gfx950 so a caller passing the
+// graph-derived RoundingMode (e.g. RTNE = 0) still resolves the row.
+// isApplicable rejects gfx950 day-one, so we exercise the registry helper
+// directly.
+TEST(SdpaBwdRegistryLookup, RegistryLookup_Gfx950Hd128Bf16NoMaskBatch)
+{
+    using namespace bwd_dispatch;
+
+    auto dqdkdvKey = lookupKernelNameKey(PipelineStage::DQDKDV,
+                                         "gfx950",
+                                         "bf16",
+                                         /*hdimQ=*/128,
+                                         /*hdimV=*/128,
+                                         MASK_NONE,
+                                         ATOMIC_A32,
+                                         PSSK_ON,
+                                         PDDV_ON,
+                                         MODE_BATCH,
+                                         BF16_CVT_RTNE);
+    EXPECT_FALSE(dqdkdvKey.empty())
+        << "gfx950 bf16 hd128 a32 dqdkdv lookup should resolve despite bf16_cvt mismatch";
+
+    auto dqConvertKey = lookupKernelNameKey(PipelineStage::DQ_CONVERT,
+                                            "gfx950",
+                                            "bf16",
+                                            /*hdimQ=*/128,
+                                            /*hdimV=*/128,
+                                            MASK_NONE,
+                                            ATOMIC_NONE,
+                                            PSSK_OFF,
+                                            PDDV_OFF,
+                                            MODE_BATCH,
+                                            BF16_CVT_RTNE);
+    EXPECT_FALSE(dqConvertKey.empty())
+        << "gfx950 bf16 hd128 dq_convert lookup should resolve despite bf16_cvt mismatch";
+
+    auto odoKey = lookupKernelNameKey(PipelineStage::ODO,
+                                      "gfx950",
+                                      "bf16",
+                                      /*hdimQ=*/128,
+                                      /*hdimV=*/128,
+                                      MASK_NONE,
+                                      ATOMIC_NONE,
+                                      PSSK_OFF,
+                                      PDDV_OFF,
+                                      MODE_BATCH,
+                                      BF16_CVT_FP16_SENTINEL);
+    EXPECT_FALSE(odoKey.empty()) << "gfx950 bf16 hd128 odo lookup should resolve";
+}
+
 TEST_F(TestSdpaBwdPlanBuilder, IsApplicable_RejectsHd96)
 {
     if(hip_kernel_provider_common::getDeviceString(_handle.getStream()) != "gfx942")
@@ -328,7 +363,7 @@ TEST_F(TestSdpaBwdPlanBuilder, IsApplicable_RejectsHd96)
         GTEST_SKIP();
     }
 
-    auto builder = createSdpaBwdGraphWithHdim(/*batch=*/2, /*numHeads=*/8, /*seqLen=*/256, 96);
+    auto builder = createSdpaBwdGraph({2, 8, 256, 96});
     hipdnn_flatbuffers_sdk::flatbuffer_utilities::GraphWrapper graphWrapper(
         builder.GetBufferPointer(), builder.GetSize());
 
@@ -344,8 +379,7 @@ TEST_F(TestSdpaBwdPlanBuilder, IsApplicable_RejectsFp8)
         GTEST_SKIP();
     }
 
-    auto builder = createSdpaBwdGraphWithHdim(
-        /*batch=*/2, /*numHeads=*/8, /*seqLen=*/256, 128, DataType::FP8_E4M3);
+    auto builder = createSdpaBwdGraph({2, 8, 256, 128}, DataType::FP8_E4M3);
     hipdnn_flatbuffers_sdk::flatbuffer_utilities::GraphWrapper graphWrapper(
         builder.GetBufferPointer(), builder.GetSize());
 
@@ -370,6 +404,39 @@ TEST_F(TestSdpaBwdPlanBuilder, IsApplicable_RejectsGfx950)
     EXPECT_FALSE(_planBuilder.isApplicable(_handle, graphWrapper));
 }
 
+TEST_F(TestSdpaBwdPlanBuilder, IsApplicable_RejectsFractionalGqaRatio)
+{
+    using namespace hipdnn_flatbuffers_sdk::data_objects;
+
+    if(hip_kernel_provider_common::getDeviceString(_handle.getStream()) != "gfx942")
+    {
+        GTEST_SKIP();
+    }
+
+    // nhead_q = 6, nhead_k = 4 → 6 % 4 = 2.  SdpaBwdPlan would silently
+    // truncate ratio = 6/4 = 1, dropping K/V heads in dispatch.
+    std::vector<int64_t> qDims = {2, 6, 256, 128};
+    std::vector<int64_t> kDims = {2, 4, 256, 128};
+    std::vector<int64_t> vDims = {2, 4, 256, 128};
+    std::vector<int64_t> oDims = {2, 6, 256, 128};
+
+    auto builder = hipdnn_test_sdk::utilities::createValidSdpaBwdGraph(
+        qDims,
+        hipdnn_data_sdk::utilities::generateStrides(qDims),
+        kDims,
+        hipdnn_data_sdk::utilities::generateStrides(kDims),
+        vDims,
+        hipdnn_data_sdk::utilities::generateStrides(vDims),
+        oDims,
+        hipdnn_data_sdk::utilities::generateStrides(oDims),
+        DataType::BFLOAT16);
+
+    hipdnn_flatbuffers_sdk::flatbuffer_utilities::GraphWrapper graphWrapper(
+        builder.GetBufferPointer(), builder.GetSize());
+
+    EXPECT_FALSE(_planBuilder.isApplicable(_handle, graphWrapper));
+}
+
 TEST_F(TestSdpaBwdPlanBuilder, IsApplicable_RejectsAsymmetricHdim)
 {
     using namespace hipdnn_flatbuffers_sdk::data_objects;
@@ -379,6 +446,8 @@ TEST_F(TestSdpaBwdPlanBuilder, IsApplicable_RejectsAsymmetricHdim)
         GTEST_SKIP();
     }
 
+    // createSdpaBwdGraph enforces D_qk == D_v, so this test builds the graph
+    // directly to exercise an asymmetric layout (D_qk=128, D_v=64).
     // V tensor has D_v = 64 while Q/K have D_qk = 128 — backward kernels
     // require square head dimensions (D_qk == D_v).
     std::vector<int64_t> qDims = {2, 8, 256, 128};
@@ -402,34 +471,6 @@ TEST_F(TestSdpaBwdPlanBuilder, IsApplicable_RejectsAsymmetricHdim)
 
     EXPECT_FALSE(_planBuilder.isApplicable(_handle, graphWrapper));
 }
-
-class PsskPddvComputationTest : public ::testing::TestWithParam<
-                                    std::tuple<unsigned int, unsigned int, unsigned int, int, int>>
-{
-};
-
-// Parameters: (seqLenKv, tsKv, headDimV, expectedPssk, expectedPddv).
-TEST_P(PsskPddvComputationTest, PaddingFlagComputation_PsskPddv)
-{
-    auto [seqLenKv, tsKv, headDimV, expectedPssk, expectedPddv] = GetParam();
-
-    EXPECT_EQ(bwd_dispatch::computePssk(seqLenKv, tsKv), expectedPssk);
-    EXPECT_EQ(bwd_dispatch::computePddv(headDimV), expectedPddv);
-}
-
-INSTANTIATE_TEST_SUITE_P(PsskPddvCases,
-                         PsskPddvComputationTest,
-                         ::testing::Values(
-                             // seqLenKv exactly divides tsKv -> pssk=0; headDimV==128 -> pddv=0
-                             std::make_tuple(256u, 64u, 128u, 0, 0),
-                             // seqLenKv not divisible -> pssk=1; headDimV==128 -> pddv=0
-                             std::make_tuple(257u, 64u, 128u, 1, 0),
-                             // seqLenKv divisible -> pssk=0; headDimV!=128 -> pddv=1
-                             std::make_tuple(192u, 64u, 64u, 0, 1),
-                             // seqLenKv not divisible -> pssk=1; headDimV!=128 -> pddv=1
-                             std::make_tuple(200u, 192u, 192u, 1, 1),
-                             // tsKv == 0 (unresolved tile) -> pssk defaults to 1
-                             std::make_tuple(256u, 0u, 128u, 1, 0)));
 
 } // namespace
 } // namespace asm_sdpa_engine

@@ -12,13 +12,13 @@ namespace
 
 // POC tile sizes sourced from
 // asm_kernels/gfx942/fmha_v3_bwd/fmha_bwd_{odo,dqdkdv,dq_convert}.csv for the
-// hd128/bf16/a32/rtne/psskddv configuration:
-//   bwd_hd128_odo_bf16            -> ts_qo=0,  ts=128
-//   bwd_hd128_bf16_a32_rtne_psskddv -> ts_qo=16, ts=192
-//   bwd_hd128_dq_convert_bf16_rtne  -> ts_qo=0,  ts=64
-constexpr SdpaBwdParams::KernelTiles K_POC_ODO_TILES{0U, 128U};
-constexpr SdpaBwdParams::KernelTiles K_POC_DQDKDV_TILES{16U, 192U};
-constexpr SdpaBwdParams::KernelTiles K_POC_DQ_CONVERT_TILES{0U, 64U};
+// hd128/bf16/a32/rtne/psskddv configuration ('ts' column):
+//   bwd_hd128_odo_bf16              -> ts=128
+//   bwd_hd128_bf16_a32_rtne_psskddv -> ts=192
+//   bwd_hd128_dq_convert_bf16_rtne  -> ts=64
+constexpr SdpaBwdParams::KernelTiles K_POC_ODO_TILES{128U};
+constexpr SdpaBwdParams::KernelTiles K_POC_DQDKDV_TILES{192U};
+constexpr SdpaBwdParams::KernelTiles K_POC_DQ_CONVERT_TILES{64U};
 
 // Historical hard-coded grid-tile constants that lived in SdpaBwdPlan.cpp prior
 // to CSV-driven plumbing.  Pinned here to make the regression check explicit.
@@ -50,7 +50,7 @@ SdpaBwdParams makePocParams(unsigned int seqLenQ, unsigned int seqLenKv)
 
 TEST(TestSdpaBwdKernelTiles, GridDimExactMultipleProducesNoRemainder)
 {
-    constexpr SdpaBwdParams::KernelTiles TILES{0U, 64U};
+    constexpr SdpaBwdParams::KernelTiles TILES{64U};
     EXPECT_EQ(TILES.gridDim(64U), 1U);
     EXPECT_EQ(TILES.gridDim(128U), 2U);
     EXPECT_EQ(TILES.gridDim(2048U), 32U);
@@ -58,7 +58,7 @@ TEST(TestSdpaBwdKernelTiles, GridDimExactMultipleProducesNoRemainder)
 
 TEST(TestSdpaBwdKernelTiles, GridDimRoundsUpForPartialTile)
 {
-    constexpr SdpaBwdParams::KernelTiles TILES{0U, 192U};
+    constexpr SdpaBwdParams::KernelTiles TILES{192U};
     EXPECT_EQ(TILES.gridDim(1U), 1U);
     EXPECT_EQ(TILES.gridDim(191U), 1U);
     EXPECT_EQ(TILES.gridDim(193U), 2U);
@@ -66,13 +66,13 @@ TEST(TestSdpaBwdKernelTiles, GridDimRoundsUpForPartialTile)
 
 TEST(TestSdpaBwdKernelTiles, GridDimZeroExtentReturnsZero)
 {
-    constexpr SdpaBwdParams::KernelTiles TILES{0U, 128U};
+    constexpr SdpaBwdParams::KernelTiles TILES{128U};
     EXPECT_EQ(TILES.gridDim(0U), 0U);
 }
 
 TEST(TestSdpaBwdKernelTiles, GridDimZeroTileReturnsZeroInsteadOfDividingByZero)
 {
-    constexpr SdpaBwdParams::KernelTiles TILES{0U, 0U};
+    constexpr SdpaBwdParams::KernelTiles TILES{};
     EXPECT_EQ(TILES.gridDim(2048U), 0U);
 }
 

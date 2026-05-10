@@ -7,6 +7,7 @@
 #include "asm_fmha_v3_fwd_configs.hpp"
 #include "plans/SdpaFwdPlan.hpp"
 
+#include <array>
 #include <cmath>
 #include <hip/hip_runtime.h>
 #include <hip_kernel_provider_common/HipDeviceUtils.hpp>
@@ -89,19 +90,19 @@ BatchMode getBatchMode(const hipdnn_flatbuffers_sdk::data_objects::SdpaAttribute
                : BatchMode::BATCH;
 }
 
-std::string getKernelNameKey(const std::string& archId,
-                             const std::string& dataType,
-                             int hdim_q, // NOLINT(readability-identifier-naming)
-                             int hdim_v, // NOLINT(readability-identifier-naming)
-                             MaskType maskType,
-                             RoundingMode bf16_cvt, // NOLINT(readability-identifier-naming)
-                             BatchMode mode,
-                             const CFG* cfgs)
+template <std::size_t N>
+const fmha_v3_fwdConfig*
+    getKernelNameKey(const std::string& archId,
+                     const std::string& dataType,
+                     int hdim_q, // NOLINT(readability-identifier-naming)
+                     int hdim_v, // NOLINT(readability-identifier-naming)
+                     MaskType maskType,
+                     RoundingMode bf16_cvt, // NOLINT(readability-identifier-naming)
+                     BatchMode mode,
+                     const std::array<fmha_v3_fwdConfig, N>* cfgs)
 {
-    std::string kernelNameKey{};
-    for(const auto& el : *cfgs)
+    for(const auto& cfg : *cfgs)
     {
-        const auto& cfg = el.second;
         if(cfg.arch != archId)
         {
             continue;
@@ -112,18 +113,16 @@ std::string getKernelNameKey(const std::string& archId,
         {
             if(archId == "gfx950")
             {
-                kernelNameKey = el.first;
-                break;
+                return &cfg;
             }
             if(archId == "gfx942" && cfg.bf16_cvt == bf16_cvt)
             {
-                kernelNameKey = el.first;
-                break;
+                return &cfg;
             }
         }
     }
 
-    return kernelNameKey;
+    return nullptr;
 }
 
 std::string getDataTypeIdentifier(hipdnn_flatbuffers_sdk::data_objects::DataType qType,
@@ -279,16 +278,16 @@ bool SdpaFwdPlanBuilder::isApplicable(
             + ") and input tensors must have datatype BFLOAT16 or FP8_E4M3 (Actual type: "
             + EnumNameDataType(qTensor->data_type()) + ")");
 
-    auto key = getKernelNameKey(deviceString,
-                                dataTypeId,
-                                static_cast<int>(qTensor->dims()->Get(3)),
-                                static_cast<int>(vTensor->dims()->Get(3)),
-                                getMaskType(attrs),
-                                getRoundingMode(attrs),
-                                getBatchMode(attrs),
-                                &cfg_fmha_fwd);
+    auto* matchedCfg = getKernelNameKey(deviceString,
+                                        dataTypeId,
+                                        static_cast<int>(qTensor->dims()->Get(3)),
+                                        static_cast<int>(vTensor->dims()->Get(3)),
+                                        getMaskType(attrs),
+                                        getRoundingMode(attrs),
+                                        getBatchMode(attrs),
+                                        &cfg_fmha_fwd);
 
-    HIP_KERNEL_RETURN_FALSE_IF(key.empty(),
+    HIP_KERNEL_RETURN_FALSE_IF(matchedCfg == nullptr,
                                "Could not find matching kernel for parameter combination");
 
     return true;
@@ -432,8 +431,7 @@ void SdpaFwdPlanBuilder::buildPlan(
     params.noMask = maskType == MaskType::NO_MASK;
 
     // Find matching kernel to graph
-    fmha_v3_fwdConfig config;
-    auto kernelKey = getKernelNameKey(
+    const auto* config = getKernelNameKey(
         deviceString,
         getDataTypeIdentifier(
             qTensor->data_type(), kTensor->data_type(), vTensor->data_type(), oTensor->data_type()),
@@ -444,20 +442,20 @@ void SdpaFwdPlanBuilder::buildPlan(
         getBatchMode(sdpaAttrs),
         &cfg_fmha_fwd);
 
-    if(kernelKey.empty())
+    if(config == nullptr)
     {
         HIPDNN_PLUGIN_LOG_ERROR("Failed to find matching kernel with error");
+        return;
     }
-    config = cfg_fmha_fwd.at(kernelKey);
 
-    params.tileSizeQo = static_cast<unsigned int>(config.ts_qo);
+    params.tileSizeQo = static_cast<unsigned int>(config->ts_qo);
 
     // Load kernel module
-    auto coPath = getKernelCoPath(config.co_name, deviceString, isMi308);
+    auto coPath = getKernelCoPath(config->co_name, deviceString, isMi308);
 
     HIPDNN_PLUGIN_LOG_INFO("Using kernel with path: " << coPath);
 
-    auto kernel = loadKernelModule(coPath, config.knl_name.c_str());
+    auto kernel = loadKernelModule(coPath, config->knl_name.c_str());
     if(!kernel)
     {
         return;

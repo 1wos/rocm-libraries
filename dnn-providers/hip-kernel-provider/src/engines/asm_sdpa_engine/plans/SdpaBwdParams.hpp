@@ -89,10 +89,9 @@ struct SdpaBwdParams
     float attnScale;
 
     // Per-stage tile sizes; populated by SdpaBwdPlanBuilder from the resolved
-    // CSV configs (ts_qo and ts columns) and consumed by SdpaBwdPlan grid math.
+    // CSV configs ('ts' column) and consumed by SdpaBwdPlan grid math.
     struct KernelTiles
     {
-        unsigned int tsQO; // Q/O tile size (column 'ts_qo' in the AITER CSV)
         unsigned int ts; // K/V or convert tile size (column 'ts' in the AITER CSV)
 
         // Ceil-divide an extent by `ts` to get the corresponding grid-x dimension.
@@ -103,9 +102,15 @@ struct SdpaBwdParams
             return ts == 0U ? 0U : (extent + ts - 1U) / ts;
         }
     };
-    KernelTiles odoTiles{0, 0}; // from cfg_fmha_bwd_odo
-    KernelTiles dqdkdvTiles{0, 0}; // from cfg_fmha_bwd_dqdkdv
-    KernelTiles dqConvertTiles{0, 0}; // from cfg_fmha_bwd_dq_convert
+    KernelTiles odoTiles{}; // from cfg_fmha_bwd_odo
+    KernelTiles dqdkdvTiles{}; // from cfg_fmha_bwd_dqdkdv
+    KernelTiles dqConvertTiles{}; // from cfg_fmha_bwd_dq_convert; unused when !useA32
+
+    // True when the resolved DQDKDV row has atomic32==1 (A32 FP32-accumulator path).
+    // When false (A16), dQ is written directly by DQDKDV and the dq_acc workspace
+    // allocation and DQ_CONVERT launch are both skipped.
+    // TODO(I8.2): flip gate in computeDispatchTuples once A16 correctness is verified.
+    bool useA32{true};
 };
 
 } // namespace asm_sdpa_engine

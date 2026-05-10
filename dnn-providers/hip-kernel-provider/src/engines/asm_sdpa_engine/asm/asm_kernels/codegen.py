@@ -4,9 +4,27 @@
 import argparse
 import glob
 import os
+import re
 import sys
 import csv
 from collections import defaultdict
+
+# Cells must contain only safe ASCII identifier characters — no quotes or
+# backslashes, which would break the double-quoted C++ string literals that
+# codegen emits.  Digits-only cells (emitted as int literals) are exempt.
+_CELL_RE = re.compile(r"^[A-Za-z0-9_./-]+$")
+
+
+def _validate_csv_cell(value: str, filepath: str, row_num: int, col: str) -> None:
+    if str(value).replace(".", "", 1).lstrip("-").isdigit():
+        return
+    if not _CELL_RE.match(value):
+        print(
+            f"ERROR: {filepath}:{row_num}: column '{col}' contains an illegal "
+            f"character (quotes or backslashes are not allowed): {value!r}"
+        )
+        sys.exit(1)
+
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 base_dir = os.path.basename(this_dir)
@@ -20,7 +38,7 @@ content = """// SPDX-License-Identifier: MIT
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 // NOLINTBEGIN(readability-identifier-naming)
 #pragma once
-#include <unordered_map>
+#include <array>
 
 """
 
@@ -70,6 +88,9 @@ if __name__ == "__main__":
                 dictreader = csv.DictReader(file)
                 fieldnames = dictreader.fieldnames
                 df = list(dictreader)
+            for row_num, row in enumerate(df, start=2):
+                for col, value in row.items():
+                    _validate_csv_cell(value, single_file, row_num, col)
             # check headers
             required_columns = {"knl_name", "co_name"}
             if not headers_list:
@@ -105,9 +126,7 @@ if __name__ == "__main__":
                 )
                 content += f"""
 #define ADD_CFG({other_columns_comma}, arch, path, knl_name, co_name)         \\
-    {{                                         \\
-        std::string(arch) + knl_name, {{ knl_name, std::string(arch) + "/" + std::string(path) + co_name, arch, {other_columns_comma} }}         \\
-    }}
+    {{ knl_name, std::string(arch) + "/" + std::string(path) + co_name, arch, {other_columns_comma} }}
 
 struct {args.module}Config
 {{
@@ -116,8 +135,6 @@ struct {args.module}Config
     std::string arch;
 {other_columns_cpp_def}
 }};
-
-using CFG = std::unordered_map<std::string, {args.module}Config>;
 
 """
                 have_get_header = True
@@ -135,10 +152,12 @@ using CFG = std::unordered_map<std::string, {args.module}Config>;
                 for row in dfs
                 if row["arch"] in archs
             ]
+            cfg_count = len(cfg)
             cfg_txt = "\n    ".join(cfg) + "\n"
 
-            txt = f"""static CFG cfg_{cfgname} = {{
-    {cfg_txt}}};"""
+            txt = f"""static constexpr std::size_t k_{cfgname}_count = {cfg_count};
+static std::array<{args.module}Config, k_{cfgname}_count> cfg_{cfgname} = {{{{
+    {cfg_txt}}}}};"""
             cfgs.append(txt)
 
     content += "\n".join(cfgs) + "\n"
