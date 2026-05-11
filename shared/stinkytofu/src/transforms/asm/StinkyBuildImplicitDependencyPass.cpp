@@ -35,18 +35,27 @@
 
 #define DEBUG_TYPE "StinkyBuildImplicitDependencyPass"
 
-// Implicit LDS dependency pass
-// ============================
-// Attaches RegType::LDS pseudo-registers to instructions based on their MemTokenData
-// token IDs.  The instruction type determines src vs dest placement:
+// Implicit dependency pass
+// ========================
+// Attaches implicit registers to instructions so that the def-use chain builder
+// can see dependencies that are not encoded as explicit operands. Two kinds of
+// implicit dependencies are handled:
 //
-//   tensor_load / ds_write  →  LDS token to dest  (LDS producer)
-//   ds_read                 →  LDS token to src   (LDS consumer)
-//   barrier / signal / wait →  LDS token to both  (synchronization point)
+// 1) Implicit special registers (SCC, VCC, EXEC) driven by HW flags
+//    (Flags.def: IF_ImplicitRead/WriteSCC, IF_ImplicitReadVCC,
+//     IF_ImplicitRead/WriteEXEC). The corresponding special register is added
+//    to src/dest if not already present.
 //
-// The def-use chain builder then sees:
-//   producer(def LDS[t]) → barrier(use+def LDS[t]) → consumer(use LDS[t])
-// which forces the scheduler to respect: producers → barrier → consumers.
+// 2) RegType::LDS pseudo-registers (keyed by MemTokenData token IDs). The
+//    instruction type determines src vs dest placement:
+//
+//      tensor_load / ds_write  →  LDS token to dest  (LDS producer)
+//      ds_read                 →  LDS token to src   (LDS consumer)
+//      barrier / signal / wait →  LDS token to both  (synchronization point)
+//
+//    The def-use chain builder then sees:
+//      producer(def LDS[t]) → barrier(use+def LDS[t]) → consumer(use LDS[t])
+//    which forces the scheduler to respect: producers → barrier → consumers.
 
 namespace {
 using namespace stinkytofu;
@@ -61,6 +70,39 @@ static void addUniqueLdsSrc(StinkyInstruction& inst, int tokenId) {
     for (const StinkyRegister& s : inst.getSrcRegs())
         if (s.reg.type == RegType::LDS && s.reg.idx == static_cast<uint32_t>(tokenId)) return;
     inst.addSrcReg(StinkyRegister(RegType::LDS, tokenId, 1));
+}
+
+// Add a special register to dest only if no register of the same RegType/idx
+// is already present. SCC/VCC/EXEC are singletons, so matching by type+idx is
+// sufficient to detect existing occurrences (whether added by an upstream
+// converter or already encoded as an explicit operand).
+static void addUniqueSpecialDest(StinkyInstruction& inst, const StinkyRegister& reg) {
+    for (const StinkyRegister& d : inst.getDestRegs())
+        if (d.reg.type == reg.reg.type && d.reg.idx == reg.reg.idx) return;
+    inst.addDestReg(reg);
+}
+
+static void addUniqueSpecialSrc(StinkyInstruction& inst, const StinkyRegister& reg) {
+    for (const StinkyRegister& s : inst.getSrcRegs())
+        if (s.reg.type == reg.reg.type && s.reg.idx == reg.reg.idx) return;
+    inst.addSrcReg(reg);
+}
+
+// Inspect the instruction's HW flags (Flags.def) and add SCC/VCC/EXEC to the
+// src/dest register lists when an implicit read/write is declared and the
+// register is not already present. Idempotent: safe to run after the rocisa
+// converter has already attached these registers, and also catches
+// instructions created outside that path (e.g. by legalization passes).
+static void addImplicitSpecialRegisters(StinkyInstruction& inst, uint32_t wavefrontSize) {
+    if (inst.is(IF_ImplicitReadSCC)) addUniqueSpecialSrc(inst, StinkyRegister::getSCCRegister());
+    if (inst.is(IF_ImplicitWriteSCC)) addUniqueSpecialDest(inst, StinkyRegister::getSCCRegister());
+
+    if (inst.is(IF_ImplicitReadVCC))
+        addUniqueSpecialSrc(inst, StinkyRegister::getVCCRegister(wavefrontSize));
+    if (inst.is(IF_ImplicitReadEXEC))
+        addUniqueSpecialSrc(inst, StinkyRegister::getEXECRegister(wavefrontSize));
+    if (inst.is(IF_ImplicitWriteEXEC))
+        addUniqueSpecialDest(inst, StinkyRegister::getEXECRegister(wavefrontSize));
 }
 
 // Barrier: LDS tokens to both src and dest.
@@ -186,9 +228,19 @@ static void checkConsistentMemTokens(const BasicBlock& bb) {
 
 void setPseudoRegistersInBlock(BasicBlock& bb, PassContext& passCtx,
                                const std::unordered_set<const BasicBlock*>& checkBlocks) {
+    // Always attach implicit special registers (SCC/VCC/EXEC) declared by HW
+    // flags. This is independent of MemToken / barrier handling, so it must
+    // run regardless of the unrollMovableBarrier feature flag.
+    const uint32_t wavefrontSize = passCtx.getWavefrontSize();
+    for (auto it = bb.begin(); it != bb.end(); ++it) {
+        auto* inst = dyn_cast<StinkyInstruction>(it.getNodePtr());
+        if (!inst) continue;
+        addImplicitSpecialRegisters(*inst, wavefrontSize);
+    }
+
     if (!passCtx.getPassFeatureConfig().barrierConfig.unrollMovableBarrier) {
-        PASS_DEBUG(std::cerr << "[BuildImplicitDep] skip BB label=\"" << bb.getLabel()
-                             << "\" (unrollMovableBarrier=false)\n");
+        PASS_DEBUG(std::cerr << "[BuildImplicitDep] skip LDS-token handling BB label=\""
+                             << bb.getLabel() << "\" (unrollMovableBarrier=false)\n");
         return;
     }
 
