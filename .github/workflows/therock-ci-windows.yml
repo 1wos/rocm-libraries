@@ -3,6 +3,12 @@ name: TheRock CI Windows
 on:
   workflow_call:
     inputs:
+      therock_ref:
+        type: string
+        required: true
+      windows_runner:
+        type: string
+        required: true
       cmake_options:
         type: string
       projects_to_test:
@@ -20,7 +26,7 @@ permissions:
 jobs:
   therock-build-windows:
     name: Build (${{ inputs.amdgpu_families }})
-    runs-on: azure-windows-scale-rocm
+    runs-on: ${{ inputs.windows_runner }}
     outputs:
       AMDGPU_FAMILIES: ${{ env.AMDGPU_FAMILIES }}
     permissions:
@@ -47,7 +53,7 @@ jobs:
         with:
           repository: "ROCm/TheRock"
           path: "TheRock"
-          ref: 70a6335b27d48f3781ba07eab89269f75a00f527 # 2026-05-03 commit
+          ref: ${{ inputs.therock_ref }}
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
